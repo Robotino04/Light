@@ -3,13 +3,37 @@
 #include <fstream>
 #include <chrono>
 #include <thread>
+#include <memory>
 
 #include "Light/Image.hpp"
+#include "Light/Camera.hpp"
+#include "Light/Sphere.hpp"
+#include "Light/HittableObjectList.hpp"
+#include "Light/Utils/Math.hpp"
 
 #include "glm/glm.hpp"
 
+glm::vec3 backgroundColor(Light::Ray ray) {
+    glm::vec3 unit_direction = glm::normalize(ray.dir);
+    float t = 0.5*(unit_direction.y + 1.0);
+    
+    return Light::Utils::lerp(t, glm::vec3(1.0, 1.0, 1.0), glm::vec3(0.5, 0.7, 1.0));
+}
+
+glm::vec3 perPixel(Light::Ray const& ray, Light::HittableObject const& scene){
+    Light::HitResult hitResult;
+    if (scene.hit(ray, hitResult)){
+        return 0.5f*(hitResult.normal+ 1.0f);
+    }
+    return backgroundColor(ray);
+}
+
 int main(){
-    Light::Image image(256, 256);
+    Light::Image image(1920, 1080);
+    Light::Camera camera(image.getWidth(), image.getHeight());
+    Light::HittableObjectList scene;
+    scene.objects.push_back(std::make_shared<Light::Sphere>(glm::vec3(0, 0, -1), 0.5));
+    scene.objects.push_back(std::make_shared<Light::Sphere>(glm::vec3(0,-100.5,-1), 100));
 
     std::cout << "[";
     for (int i=0; i<50; i++) std::cout << " ";
@@ -20,11 +44,11 @@ int main(){
     int progressbar=0;
     for (int j=0; j<image.getHeight(); j++){
         for (int i=0; i<image.getWidth(); i++){
-            auto r = double(i) / (image.getWidth()-1);
-            auto g = double(j) / (image.getHeight()-1);
-            auto b = 0.25;
-            image.at(i, j) = {r, g, b};
+            Light::Ray ray = camera.getViewRay(i, j);
+            image.at(i, j) = perPixel(ray, scene);
         }
+
+        // progress bat
         if (int((float(j+1)/float(image.getHeight()))*50) > progressbar){
             progressbar = int((float(j+1)/float(image.getHeight()))*50);
             std::cout << "#" << std::flush;
