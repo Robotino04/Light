@@ -10,7 +10,7 @@ class Camera{
     public:
         Camera(int width, int height);
 
-        Ray getViewRay(int i, int j) const;
+        Ray getViewRay(float i, float j) const;
 
     private:
         glm::mat4x4 projectionMatrix;
