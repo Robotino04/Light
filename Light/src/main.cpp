@@ -31,7 +31,7 @@ glm::vec3 traceRay(Light::Ray const& ray, Light::HittableObject const& scene, in
         // return 0.5f*(hitResult.normal + 1.0f); // Normal shading
         Light::Ray newRay;
         newRay.origin = hitResult.hitPoint + hitResult.normal * 1e-5f;
-        glm::vec3 target = hitResult.hitPoint + hitResult.normal + Light::Utils::randomInUnitSphere();
+        glm::vec3 target = hitResult.hitPoint + hitResult.normal + Light::Utils::randomOnUnitSphere();
         newRay.dir = glm::normalize(target - hitResult.hitPoint);
         return hitResult.hitObject->material.reflectivity * traceRay(newRay, scene, maxDepth, depth+1);
     }
@@ -94,7 +94,10 @@ int main(){
                 Light::Ray ray = camera.getViewRay(u, v);
                 color += traceRay(ray, scene, maxDepth);
             }
-            image.at(i, j) = color / float(numSamplesPerPixel);
+            color /= float(numSamplesPerPixel);
+            color = glm::sqrt(color);           // gamma correction for gamma=2
+
+            image.at(i, j) = color;
         }
 
         progress++;
