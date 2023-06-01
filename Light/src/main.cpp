@@ -9,7 +9,9 @@
 #include "Light/Camera.hpp"
 #include "Light/Sphere.hpp"
 #include "Light/HittableObjectList.hpp"
+
 #include "Light/Utils/Math.hpp"
+#include "Light/Utils/Random.hpp"
 
 #include "glm/glm.hpp"
 
@@ -34,6 +36,7 @@ int main(){
     Light::HittableObjectList scene;
     scene.objects.push_back(std::make_shared<Light::Sphere>(glm::vec3(0, 0, -1), 0.5));
     scene.objects.push_back(std::make_shared<Light::Sphere>(glm::vec3(0,-100.5,-1), 100));
+    const int numSamplesPerPixel = 5;
 
     std::cout << "[";
     for (int i=0; i<50; i++) std::cout << " ";
@@ -41,17 +44,24 @@ int main(){
     for (int i=0; i<51; i++) std::cout << "\b";
     std::cout << std::flush;
 
+    image.clear();
     int progressbar=0;
     for (int j=0; j<image.getHeight(); j++){
         for (int i=0; i<image.getWidth(); i++){
-            Light::Ray ray = camera.getViewRay(i, j);
-            image.at(i, j) = perPixel(ray, scene);
+            for (int sample=0; sample<numSamplesPerPixel; sample++){
+                float u = float(i) + Light::Utils::random<float>();
+                float v = float(j) + Light::Utils::random<float>();
+
+                Light::Ray ray = camera.getViewRay(u, v);
+                image.at(i, j) += perPixel(ray, scene);
+            }
+            image.at(i, j) /= float(numSamplesPerPixel);
         }
 
-        // progress bat
+        // progress bar
         if (int((float(j+1)/float(image.getHeight()))*50) > progressbar){
             progressbar = int((float(j+1)/float(image.getHeight()))*50);
-            std::cout << "#" << std::flush;
+            std::cout << "#"  << std::flush;
         }
     }
     std::cout << "\n";

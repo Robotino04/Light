@@ -9,11 +9,11 @@ namespace Light{
         inverseProjectionMatrix = glm::inverse(projectionMatrix);
     }
     
-    Ray Camera::getViewRay(int i, int j) const{
+    Ray Camera::getViewRay(float i, float j) const{
         Ray ray;
         glm::vec4 dir;
-        dir.x = (float(i)/float(width))*2-1;
-        dir.y = (float(j)/float(height))*2-1;
+        dir.x = (i/float(width))*2-1;
+        dir.y = (j/float(height))*2-1;
         dir.z = 1;
         dir.w = 1;
 
