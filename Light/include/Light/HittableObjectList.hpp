@@ -12,10 +12,11 @@ namespace Light{
 
 class HittableObjectList : public HittableObject{
     public:
+        ~HittableObjectList();
         bool hit(Ray const& ray, HitResult& hitResult) const override;
 
     public:
-        std::vector<std::shared_ptr<HittableObject>> objects;
+        std::vector<HittableObject*> objects; // manual memory management to avoid shared_ptr locks
 };
 
 }

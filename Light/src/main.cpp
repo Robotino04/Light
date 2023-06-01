@@ -4,6 +4,7 @@
 #include <chrono>
 #include <thread>
 #include <memory>
+#include <execution>
 
 #include "Light/Image.hpp"
 #include "Light/Camera.hpp"
@@ -34,37 +35,63 @@ int main(){
     Light::Image image(1920, 1080);
     Light::Camera camera(image.getWidth(), image.getHeight());
     Light::HittableObjectList scene;
-    scene.objects.push_back(std::make_shared<Light::Sphere>(glm::vec3(0, 0, -1), 0.5));
-    scene.objects.push_back(std::make_shared<Light::Sphere>(glm::vec3(0,-100.5,-1), 100));
-    const int numSamplesPerPixel = 5;
+    scene.objects.push_back(new Light::Sphere(glm::vec3(1, 0, -1), 0.5));
+    scene.objects.push_back(new Light::Sphere(glm::vec3(0,-100.5,-1), 100));
+    const int numSamplesPerPixel = 50;
 
+    const int progressBarDetail = 50;
     std::cout << "[";
-    for (int i=0; i<50; i++) std::cout << " ";
+    for (int i=0; i<progressBarDetail; i++) std::cout << " ";
     std::cout << "]";
-    for (int i=0; i<51; i++) std::cout << "\b";
+    for (int i=0; i<progressBarDetail+1; i++) std::cout << "\b";
     std::cout << std::flush;
 
     image.clear();
-    int progressbar=0;
-    for (int j=0; j<image.getHeight(); j++){
+    std::atomic<int> progress = 0;
+    std::thread ioThread([&](){
+        int lastProgressStep = 0;
+        while (true){
+            int currentProgress = progress; // local copy to avoid locking the variable for the workers
+            int progressStep = (currentProgress*progressBarDetail)/image.getHeight();
+            while (progressStep > lastProgressStep){
+                std::cout << "#";
+                lastProgressStep++;
+            }
+            std::cout << std::flush;
+            if (currentProgress == image.getHeight()) return;
+            std::this_thread::sleep_for(std::chrono::milliseconds(20));
+
+        }
+    });
+    
+    std::vector<int> scanlines;
+    for (int i=0; i<image.getHeight(); i++){
+        scanlines.push_back(i);
+    }
+    auto start = std::chrono::high_resolution_clock::now();
+
+    std::for_each(std::execution::par_unseq, scanlines.begin(), scanlines.end(), [&](int j){
         for (int i=0; i<image.getWidth(); i++){
+            glm::vec3 color(0);
             for (int sample=0; sample<numSamplesPerPixel; sample++){
                 float u = float(i) + Light::Utils::random();
                 float v = float(j) + Light::Utils::random();
 
                 Light::Ray ray = camera.getViewRay(u, v);
-                image.at(i, j) += perPixel(ray, scene);
+                color += perPixel(ray, scene);
             }
-            image.at(i, j) /= float(numSamplesPerPixel);
+            image.at(i, j) = color / float(numSamplesPerPixel);
         }
 
-        // progress bar
-        if (int((float(j+1)/float(image.getHeight()))*50) > progressbar){
-            progressbar = int((float(j+1)/float(image.getHeight()))*50);
-            std::cout << "#"  << std::flush;
-        }
-    }
+        progress++;
+    });
+    
+    auto end = std::chrono::high_resolution_clock::now();
+    ioThread.join();
+
     std::cout << "\n";
+    std::cout << "Rendering took " << std::chrono::duration<float>(end-start).count() << "s.\n";
+
 
     std::ofstream file("test.ppm");
     if (!file.is_open()){
