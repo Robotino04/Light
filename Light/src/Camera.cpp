@@ -5,7 +5,7 @@
 namespace Light{
     Camera::Camera(int width, int height): width(width), height(height) {
         ratio = float(width)/float(height);
-        projectionMatrix = glm::perspective(90.0f, ratio, 0.01f, 1000.0f);
+        projectionMatrix = glm::perspective(glm::radians(90.0f), ratio, 0.01f, 1000.0f);
         inverseProjectionMatrix = glm::inverse(projectionMatrix);
     }
     
@@ -18,6 +18,7 @@ namespace Light{
         dir.w = 1;
 
         ray.dir = inverseProjectionMatrix*dir;
+        ray.dir = glm::normalize(ray.dir);
         ray.origin = {0,0,0};
         return ray;
     }
