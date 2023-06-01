@@ -15,9 +15,9 @@
 
 #include "glm/glm.hpp"
 
-glm::vec3 backgroundColor(Light::Ray ray) {
+glm::vec3 backgroundColor(Light::Ray const& ray) {
     glm::vec3 unit_direction = glm::normalize(ray.dir);
-    float t = 0.5*(unit_direction.y + 1.0);
+    float t = 0.5f*(unit_direction.y + 1.0f);
     
     return Light::Utils::lerp(t, glm::vec3(1.0, 1.0, 1.0), glm::vec3(0.5, 0.7, 1.0));
 }
@@ -25,7 +25,7 @@ glm::vec3 backgroundColor(Light::Ray ray) {
 glm::vec3 perPixel(Light::Ray const& ray, Light::HittableObject const& scene){
     Light::HitResult hitResult;
     if (scene.hit(ray, hitResult)){
-        return 0.5f*(hitResult.normal+ 1.0f);
+        return 0.5f*(hitResult.normal + 1.0f);
     }
     return backgroundColor(ray);
 }
@@ -49,8 +49,8 @@ int main(){
     for (int j=0; j<image.getHeight(); j++){
         for (int i=0; i<image.getWidth(); i++){
             for (int sample=0; sample<numSamplesPerPixel; sample++){
-                float u = float(i) + Light::Utils::random<float>();
-                float v = float(j) + Light::Utils::random<float>();
+                float u = float(i) + Light::Utils::random();
+                float v = float(j) + Light::Utils::random();
 
                 Light::Ray ray = camera.getViewRay(u, v);
                 image.at(i, j) += perPixel(ray, scene);
