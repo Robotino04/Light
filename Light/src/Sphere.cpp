@@ -15,6 +15,7 @@ bool Sphere::hit(Ray const& ray, HitResult& hitResult) const{
     float t = (-half_b - glm::sqrt(discriminant)) / a;
     if (t > 0 && t < hitResult.t){
         hitResult.t = t;
+        hitResult.hitObject = this;
         hitResult.hitPoint = ray.at(hitResult.t);
         hitResult.normal = glm::normalize(hitResult.hitPoint - pos);
         return true;
