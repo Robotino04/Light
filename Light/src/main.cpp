@@ -15,6 +15,9 @@
 #include "Light/Utils/Random.hpp"
 
 #include "glm/glm.hpp"
+#include "glm/gtc/random.hpp"
+
+static constexpr float epsilon = 1e-8f;
 
 glm::vec3 backgroundColor(Light::Ray const& ray) {
     glm::vec3 unit_direction = glm::normalize(ray.dir);
@@ -29,31 +32,36 @@ glm::vec3 traceRay(Light::Ray const& ray, Light::HittableObject const& scene, in
     Light::HitResult hitResult;
     if (scene.hit(ray, hitResult)){
         // return 0.5f*(hitResult.normal + 1.0f); // Normal shading
+
         Light::Ray newRay;
-        newRay.origin = hitResult.hitPoint + hitResult.normal * 1e-5f;
-        glm::vec3 target = hitResult.hitPoint + hitResult.normal + Light::Utils::randomOnUnitSphere();
+        newRay.origin = hitResult.hitPoint + hitResult.normal * epsilon;
+        
+        glm::vec3 pointOnUnitSphere = Light::Utils::randomOnUnitSphere();
+
+        glm::vec3 specularTarget = hitResult.hitPoint + glm::reflect(ray.dir, hitResult.normal) + hitResult.hitObject->material.roughness * pointOnUnitSphere;
+        glm::vec3 diffuseTarget = hitResult.hitPoint + hitResult.normal + pointOnUnitSphere;
+        // in the range [1.5, 2.0[ tansition from specular to diffuse
+        float scaledRoughness = glm::clamp(Light::Utils::remap(hitResult.hitObject->material.roughness, 1.5f, 1.9999f, 0.0f, 1.0f), 0.0f, 1.0f);
+        
+        glm::vec3 target;
+        if (scaledRoughness == 0.0f)
+            target = specularTarget;
+        else if (scaledRoughness == 2.0f)
+            target = diffuseTarget;
+        else
+            target = Light::Utils::random() > scaledRoughness ? specularTarget : diffuseTarget;
+
         newRay.dir = glm::normalize(target - hitResult.hitPoint);
-        return hitResult.hitObject->material.reflectivity * traceRay(newRay, scene, maxDepth, depth+1);
+        if (glm::dot(newRay.dir, hitResult.normal) < 0){
+            newRay.dir = -newRay.dir;
+        }
+        
+        return hitResult.hitObject->material.reflectivity * hitResult.hitObject->material.color * traceRay(newRay, scene, maxDepth, depth+1);
     }
     return backgroundColor(ray);
 }
 
-int main(){
-    Light::Image image(1920, 1080);
-    Light::Camera camera(image.getWidth(), image.getHeight());
-    Light::HittableObjectList scene;
-    const int numSamplesPerPixel = 10;
-    const int maxDepth = 10;
-
-    scene.objects.push_back(new Light::Sphere(glm::vec3(0, 0, -1), 0.5));
-    scene.objects.push_back(new Light::Sphere(glm::vec3(0,-100.5,-1), 100));
-    static_cast<Light::Sphere*>(scene.objects.at(0))->material.color = glm::vec3(1);
-    static_cast<Light::Sphere*>(scene.objects.at(0))->material.reflectivity = 0.5f;
-    static_cast<Light::Sphere*>(scene.objects.at(0))->material.roughness = 1.0f;
-    static_cast<Light::Sphere*>(scene.objects.at(1))->material = static_cast<Light::Sphere*>(scene.objects.at(0))->material;
-
-
-    const int progressBarDetail = 50;
+void render(Light::Image& image, Light::HittableObject const& scene, Light::Camera camera, int numSamplesPerPixel, int maxDepth, int progressBarDetail){
     std::cout << "[";
     for (int i=0; i<progressBarDetail; i++) std::cout << " ";
     std::cout << "]";
@@ -82,7 +90,6 @@ int main(){
     for (int i=0; i<image.getHeight(); i++){
         scanlines.push_back(i);
     }
-    auto start = std::chrono::high_resolution_clock::now();
 
     std::for_each(std::execution::par_unseq, scanlines.begin(), scanlines.end(), [&](int j){
         for (int i=0; i<image.getWidth(); i++){
@@ -103,19 +110,53 @@ int main(){
         progress++;
     });
     
-    auto end = std::chrono::high_resolution_clock::now();
     ioThread.join();
+}
 
-    std::cout << "\n";
-    std::cout << "Rendering took " << std::chrono::duration<float>(end-start).count() << "s.\n";
+int main(){
+    Light::Image image(1920, 1080);
+    Light::Camera camera(image.getWidth(), image.getHeight());
+    Light::HittableObjectList scene;
+    const int numSamplesPerPixel = 50;
+    const int maxDepth = 5;
+
+    Light::Sphere* ground = new Light::Sphere(glm::vec3(0,-100.5,-1), 100);
+    Light::Sphere* left = new Light::Sphere(glm::vec3(-1, 0, -1), 0.5);
+    Light::Sphere* middle = new Light::Sphere(glm::vec3(0, 0, -1), 0.5);
+    Light::Sphere* right = new Light::Sphere(glm::vec3(1, 0, -1), 0.5);
+    ground->material.color = {0.8, 0.8, 0.0};
+    ground->material.roughness = 1;
+    ground->material.reflectivity = 1;
+    left->material.color = {0.8, 0.8, 0.8};
+    left->material.roughness = 0.3;
+    middle->material.color = {0.7, 0.3, 0.3};
+    middle->material.roughness = 2.0f;
+    right->material.color = {0.8, 0.6, 0.2};
+    right->material.roughness = 1.0;
+
+    scene.objects.push_back(ground);
+    scene.objects.push_back(left);
+    scene.objects.push_back(middle);
+    scene.objects.push_back(right);
+
+    int imageNumber = 0;
+    for (right->material.roughness = 0.0; right->material.roughness <= 2.00; right->material.roughness += 0.02){
+        auto start = std::chrono::high_resolution_clock::now();
+        render(image, scene, camera, numSamplesPerPixel, maxDepth, 50);
+        auto end = std::chrono::high_resolution_clock::now();
+
+        std::cout << "\n";
+        std::cout << "Rendering took " << std::chrono::duration<float>(end-start).count() << "s.\n";
 
 
-    std::ofstream file("test.ppm");
-    if (!file.is_open()){
-        throw std::runtime_error("Unable to open file.");
+        std::ofstream file("test" + std::to_string(imageNumber) + "_" + std::to_string(right->material.roughness) + ".ppm");
+        if (!file.is_open()){
+            throw std::runtime_error("Unable to open file.");
+        }
+        file << image;
+        file.close();
+        imageNumber++;
     }
-    file << image;
-    file.close();
 
 
     return 0;
