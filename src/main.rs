@@ -1,5 +1,6 @@
 use std::{time::Instant, io::{stdout, Write}, ops::{Mul, Add}};
 
+use hit_result::HitResult;
 use hittable::Hittable;
 use image::Image;
 use ray::Ray;
@@ -8,6 +9,8 @@ mod image;
 mod ray;
 mod sphere;
 mod hittable;
+mod hit_result;
+mod material;
 
 use ultraviolet::{Vec3, Vec4};
 
@@ -24,20 +27,37 @@ fn sample_background_gradient(ray: Ray) -> Vec3{
 }
 
 fn trace_ray(ray: Ray, scene: &impl Hittable) -> Vec3{
-    if scene.hit(ray){
-        return Vec3::new(1.0, 0.0, 0.0);
+    let mut hit: HitResult = HitResult::default();
+    
+    scene.hit(ray, &mut hit);
+
+    return match hit.material {
+        Some(mat) => {
+            match mat {
+                material::Material::NormalMaterial() => hit.normal*0.5 + Vec3::new(0.5, 0.5, 0.5),
+            }
+        },
+        None => sample_background_gradient(ray),
     }
-    sample_background_gradient(ray)
 }
 
 fn main() {
     let mut image: Image = Image::new(400, 225);
 
-    let scene: Sphere = Sphere{
-        center: Vec3::new(0.0,0.0,-1.0),
-        radius: 0.5,
-    };
-        
+
+    let scene: Vec<Box<dyn Hittable>> = vec![
+        Box::new(Sphere{
+            center: Vec3::new(0.0,0.0,-1.0),
+            radius: 0.5,
+            material: material::Material::NormalMaterial(),
+        }),
+        Box::new(Sphere{
+            center: Vec3::new(0.0,-100.5,0.0),
+            radius: 100.0,
+            material: material::Material::NormalMaterial(),
+        })
+    ];
+
 
     println!("Rendering {}x{} image...", image.width(), image.height());
     let rendering_start = Instant::now();
