@@ -4,5 +4,5 @@ use ultraviolet::Vec3;
 pub enum Material{
     NormalMaterial(),
     DiffuseMaterial{albedo: Vec3},
-    MetallicMaterial{albedo: Vec3, roughness: f32, metalness: f32}, 
+    MetallicMaterial{albedo: Vec3, roughness: f32}, 
 }
