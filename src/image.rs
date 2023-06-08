@@ -27,6 +27,11 @@ impl Image{
             for x in 0..self.width{
                 let mut pixel_mut: Vec3 = self[(x, y)];
                 pixel_mut.clamp(Vec3::new(0.0, 0.0, 0.0), Vec3 { x: 1.0, y: 1.0, z: 1.0});
+                // gamma correct for gamma=2
+                pixel_mut.x = pixel_mut.x.sqrt();
+                pixel_mut.y = pixel_mut.y.sqrt();
+                pixel_mut.z = pixel_mut.z.sqrt();
+                
                 pixel_mut *= 255.0;
                 file.write(slice::from_ref(&(pixel_mut.x as u8)))?;
                 file.write(slice::from_ref(&(pixel_mut.y as u8)))?;

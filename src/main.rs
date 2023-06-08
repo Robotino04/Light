@@ -1,4 +1,4 @@
-use std::{time::Instant, io::{stdout, Write}, ops::{Mul, Add}, sync::{Mutex, mpsc}, thread::{Thread, self}};
+use std::{time::Instant, io::{stdout, Write}, ops::{Mul, Add}, sync::{Mutex, mpsc}, thread};
 
 use hit_result::HitResult;
 use hittable::Hittable;
@@ -16,8 +16,6 @@ use ultraviolet::{Vec3, Vec4};
 
 use crate::sphere::Sphere;
 
-use rand::Rng;
-
 use rayon::prelude::*;
 
 fn lerp<T>(t: f32, x0: T, x1: T) -> T
@@ -30,7 +28,19 @@ fn sample_background_gradient(ray: Ray) -> Vec3{
     return lerp::<Vec3>(t, Vec3::new(1.0, 1.0, 1.0), Vec3::new(0.5, 0.7, 1.0));
 }
 
-fn trace_ray(ray: Ray, scene: &impl Hittable) -> Vec3{
+fn random_in_unit_sphere() -> Vec3{
+    loop{  
+        let v = Vec3{x: rand::random(), y: rand::random(), z: rand::random()} * 2.0 - Vec3::new(1.0, 1.0, 1.0);
+        if v.mag_sq() < 1.0{
+            return v;
+        }
+    }
+}
+
+fn trace_ray(ray: Ray, scene: &impl Hittable, depth: i32) -> Vec3{
+    if depth == 0{
+        return Vec3::new(0.0, 0.0, 0.0);
+    }
     let mut hit: HitResult = HitResult::default();
     
     scene.hit(ray, &mut hit);
@@ -39,6 +49,14 @@ fn trace_ray(ray: Ray, scene: &impl Hittable) -> Vec3{
         Some(mat) => {
             match mat {
                 material::Material::NormalMaterial() => hit.normal*0.5 + Vec3::new(0.5, 0.5, 0.5),
+                material::Material::DiffuseMaterial { albedo, reflectivity } => {
+                    let target = hit.normal + random_in_unit_sphere();
+                    let new_ray: Ray = Ray{
+                        origin: ray.at(hit.t) + hit.normal * 0e-5,
+                        direction: target.normalized(),
+                    };
+                    return albedo * reflectivity * trace_ray(new_ray, scene, depth-1)
+                }
             }
         },
         None => sample_background_gradient(ray),
@@ -55,28 +73,34 @@ fn main() {
     let image_width: i32 = protected_image.lock().unwrap().width();
     let image_height: i32 = protected_image.lock().unwrap().height();
     let samples_per_pixel: usize = 100;
+    let max_depth: i32 = 50;
 
     let scene: Vec<Box<dyn Hittable + Sync + Send>> = vec![
         Box::new(Sphere{
             center: Vec3::new(0.0,0.0,-1.0),
             radius: 0.5,
-            material: material::Material::NormalMaterial(),
+            material: material::Material::DiffuseMaterial{
+                albedo: Vec3::new(1.0, 1.0, 1.0),
+                reflectivity: 0.5,
+            },
         }),
         Box::new(Sphere{
             center: Vec3::new(0.0,-100.5,0.0),
             radius: 100.0,
-            material: material::Material::NormalMaterial(),
+            material: material::Material::DiffuseMaterial{
+                albedo: Vec3::new(1.0, 1.0, 1.0),
+                reflectivity: 0.5,
+            },
         })
     ];
 
     // setup rendering data
-    
     let aspect_ratio = image_width as f32 / image_height as f32;
     let camera_matrix = ultraviolet::projection::perspective_gl((90.0 as f32).to_radians(), aspect_ratio, 0.0001, 10000.0);
     let inverse_camera_matrix = camera_matrix.inversed();
     let scanlines = (0..image_height).collect::<Vec<i32>>();
 
-    println!("Rendering {}x{} image @ {} spp...", image_width, image_height, samples_per_pixel);
+    println!("Rendering {}x{} image @ {} spp; depth {}...", image_width, image_height, samples_per_pixel, max_depth);
     
     // setup parallelism
     
@@ -100,12 +124,11 @@ fn main() {
 
     let rendering_start = Instant::now();
     scanlines.par_iter().for_each_with(tx_progress.clone(), |tx_progress, y: &i32|{ 
-        let mut rng = rand::thread_rng();
         for x in 0..image_width{
             let mut local_pixel: Vec3 = Vec3::new(0.0, 0.0, 0.0);
             for _sample in 0..samples_per_pixel{
-                let x_offset: f32 = rng.gen(); 
-                let y_offset: f32 = rng.gen(); 
+                let x_offset: f32 = rand::random(); 
+                let y_offset: f32 = rand::random(); 
 
                 let ray: Ray = Ray{
                     direction: (inverse_camera_matrix * Vec4::new(
@@ -118,7 +141,7 @@ fn main() {
                     origin: Vec3::new(0.0,0.0,0.0)
                 };
 
-                local_pixel += trace_ray(ray, &scene);
+                local_pixel += trace_ray(ray, &scene, max_depth);
             }
             protected_image.lock().unwrap()[(x, *y)] = local_pixel / samples_per_pixel as f32;
         }
