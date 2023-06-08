@@ -1,4 +1,4 @@
-use std::{time::Instant, io::{stdout, Write}, ops::{Mul, Add, AddAssign}, sync::Mutex, thread::{Thread, self}};
+use std::{time::Instant, io::{stdout, Write}, ops::{Mul, Add}, sync::{Mutex, mpsc}, thread::{Thread, self}};
 
 use hit_result::HitResult;
 use hittable::Hittable;
@@ -45,13 +45,18 @@ fn trace_ray(ray: Ray, scene: &impl Hittable) -> Vec3{
     }
 }
 
+enum ProgressMessage{
+    AddScanline,
+    Quit,
+}
+
 fn main() {
-    let image_width: i32 = 400;
-    let image_height: i32 = 225;
-    let protected_image: Mutex<Image> = Mutex::new(Image::new(image_width, image_height));
+    let protected_image: Mutex<Image> = Mutex::new(Image::new(400, 225));
+    let image_width: i32 = protected_image.lock().unwrap().width();
+    let image_height: i32 = protected_image.lock().unwrap().height();
     let samples_per_pixel: usize = 100;
 
-    let scene: Vec<Box<dyn Hittable + Sync>> = vec![
+    let scene: Vec<Box<dyn Hittable + Sync + Send>> = vec![
         Box::new(Sphere{
             center: Vec3::new(0.0,0.0,-1.0),
             radius: 0.5,
@@ -65,23 +70,36 @@ fn main() {
     ];
 
     // setup rendering data
-
+    
     let aspect_ratio = image_width as f32 / image_height as f32;
     let camera_matrix = ultraviolet::projection::perspective_gl((90.0 as f32).to_radians(), aspect_ratio, 0.0001, 10000.0);
     let inverse_camera_matrix = camera_matrix.inversed();
     let scanlines = (0..image_height).collect::<Vec<i32>>();
-    let progress: Mutex<usize> = Mutex::new(0);
 
     println!("Rendering {}x{} image @ {} spp...", image_width, image_height, samples_per_pixel);
     
-    let progress_bar_thread = thread::spawn(|| {
-        while progress.lock().unwrap() < image_height{
+    // setup parallelism
+    
+    // limit to one thread
+    //rayon::ThreadPoolBuilder::new().num_threads(1).build_global().unwrap();
+    
+    let (tx_progress, rx_progress) = mpsc::channel::<ProgressMessage>();
+    let progress_bar_thread = thread::spawn(move || {
+        let mut progress: i32 = 0;
+        loop{
+            match rx_progress.recv().unwrap_or(ProgressMessage::Quit){
+                ProgressMessage::AddScanline => {
+                    progress += 1;
+                    print!("[{:<50}]\r", "#".repeat((progress*50 / (image_height-1)) as usize));
+                    stdout().flush().unwrap();
+                },
+                ProgressMessage::Quit => break,
+            }
         }
     });
-    progress_bar_thread.
 
     let rendering_start = Instant::now();
-    scanlines.par_iter().for_each(|y: &i32|{ 
+    scanlines.par_iter().for_each_with(tx_progress.clone(), |tx_progress, y: &i32|{ 
         let mut rng = rand::thread_rng();
         for x in 0..image_width{
             let mut local_pixel: Vec3 = Vec3::new(0.0, 0.0, 0.0);
@@ -104,8 +122,10 @@ fn main() {
             }
             protected_image.lock().unwrap()[(x, *y)] = local_pixel / samples_per_pixel as f32;
         }
-        progress.lock().unwrap().add_assign(1);
+        tx_progress.send(ProgressMessage::AddScanline).unwrap();
     });
+    tx_progress.send(ProgressMessage::Quit).unwrap();
+    progress_bar_thread.join().unwrap();
     println!();
     println!("Rendering took {:.2?}", rendering_start.elapsed());
 

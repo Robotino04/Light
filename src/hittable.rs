@@ -4,7 +4,7 @@ pub trait Hittable{
     fn hit(&self, ray: Ray, hit: &mut HitResult) -> bool;
 }
 
-impl Hittable for Vec<Box<dyn Hittable + Sync>>{
+impl Hittable for Vec<Box<dyn Hittable + Sync + Send>>{
     fn hit(&self, ray: Ray, hit: &mut HitResult) -> bool{
         let mut did_hit = false;
         for hittable in self.iter() {
