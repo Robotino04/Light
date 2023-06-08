@@ -37,6 +37,10 @@ fn random_in_unit_sphere() -> Vec3{
     }
 }
 
+fn random_on_unit_sphere() -> Vec3{
+    random_in_unit_sphere().normalized()
+}
+
 fn trace_ray(ray: Ray, scene: &impl Hittable, depth: i32) -> Vec3{
     if depth == 0{
         return Vec3::new(0.0, 0.0, 0.0);
@@ -50,7 +54,7 @@ fn trace_ray(ray: Ray, scene: &impl Hittable, depth: i32) -> Vec3{
             match mat {
                 material::Material::NormalMaterial() => hit.normal*0.5 + Vec3::new(0.5, 0.5, 0.5),
                 material::Material::DiffuseMaterial { albedo, reflectivity } => {
-                    let target = hit.normal + random_in_unit_sphere();
+                    let target = hit.normal + random_on_unit_sphere();
                     let new_ray: Ray = Ray{
                         origin: ray.at(hit.t) + hit.normal * 0e-5,
                         direction: target.normalized(),
