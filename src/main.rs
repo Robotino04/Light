@@ -53,15 +53,28 @@ fn trace_ray(ray: Ray, scene: &impl Hittable, depth: i32) -> Vec3{
         Some(mat) => {
             match mat {
                 material::Material::NormalMaterial() => hit.normal*0.5 + Vec3::new(0.5, 0.5, 0.5),
-                material::Material::DiffuseMaterial { albedo, reflectivity } => {
+                material::Material::DiffuseMaterial { albedo } => {
                     let target = hit.normal + random_on_unit_sphere();
                     let new_ray: Ray = Ray{
                         origin: ray.at(hit.t) + hit.normal * 0e-5,
                         direction: target.normalized(),
                     };
-                    return albedo * reflectivity * trace_ray(new_ray, scene, depth-1)
+                    return albedo * trace_ray(new_ray, scene, depth-1)
                 }
-            }
+                material::Material::MetallicMaterial { albedo, roughness, metalness } => {
+                    let mut direction = ray.direction.reflected(hit.normal) + roughness * random_in_unit_sphere(); 
+                    if direction.dot(hit.normal) <= 0.0{
+                        // the ray got reflected back into the object
+                        return Vec3::new(0.0, 0.0, 0.0);
+                    }
+                    direction.normalize();
+                    let new_ray: Ray = Ray{
+                        origin: ray.at(hit.t) + hit.normal * 0e-5,
+                        direction,
+                    };
+                    return albedo * trace_ray(new_ray, scene, depth-1)
+                }
+             }
         },
         None => sample_background_gradient(ray),
     }
@@ -81,19 +94,35 @@ fn main() {
 
     let scene: Vec<Box<dyn Hittable + Sync + Send>> = vec![
         Box::new(Sphere{
+            center: Vec3::new(-1.0,0.0,-1.0),
+            radius: 0.5,
+            material: material::Material::MetallicMaterial{
+                albedo: Vec3::new(0.8,0.8,0.8),
+                roughness: 0.3,
+                metalness: 1.0,
+            }
+        }),
+        Box::new(Sphere{
             center: Vec3::new(0.0,0.0,-1.0),
             radius: 0.5,
             material: material::Material::DiffuseMaterial{
-                albedo: Vec3::new(1.0, 1.0, 1.0),
-                reflectivity: 0.5,
-            },
+                albedo: Vec3::new(0.7,0.3,0.3),
+            }
+        }),
+        Box::new(Sphere{
+            center: Vec3::new(1.0,0.0,-1.0),
+            radius: 0.5,
+            material: material::Material::MetallicMaterial{
+                albedo: Vec3::new(0.8,0.6,0.2),
+                roughness: 1.0,
+                metalness: 1.0,
+            }
         }),
         Box::new(Sphere{
             center: Vec3::new(0.0,-100.5,0.0),
             radius: 100.0,
             material: material::Material::DiffuseMaterial{
-                albedo: Vec3::new(1.0, 1.0, 1.0),
-                reflectivity: 0.5,
+                albedo: Vec3::new(0.8, 0.8, 0.0),
             },
         })
     ];
