@@ -61,7 +61,7 @@ fn trace_ray(ray: Ray, scene: &impl Hittable, depth: i32) -> Vec3{
                     };
                     return albedo * trace_ray(new_ray, scene, depth-1)
                 }
-                material::Material::MetallicMaterial { albedo, roughness, metalness } => {
+                material::Material::MetallicMaterial { albedo, roughness } => {
                     let mut direction = ray.direction.reflected(hit.normal) + roughness * random_in_unit_sphere(); 
                     if direction.dot(hit.normal) <= 0.0{
                         // the ray got reflected back into the object
@@ -99,7 +99,6 @@ fn main() {
             material: material::Material::MetallicMaterial{
                 albedo: Vec3::new(0.8,0.8,0.8),
                 roughness: 0.3,
-                metalness: 1.0,
             }
         }),
         Box::new(Sphere{
@@ -115,7 +114,6 @@ fn main() {
             material: material::Material::MetallicMaterial{
                 albedo: Vec3::new(0.8,0.6,0.2),
                 roughness: 1.0,
-                metalness: 1.0,
             }
         }),
         Box::new(Sphere{
