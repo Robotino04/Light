@@ -11,10 +11,11 @@ mod sphere;
 mod hittable;
 mod hit_result;
 mod material;
+mod camera;
 
-use ultraviolet::{Vec3, Vec4};
+use ultraviolet::Vec3;
 
-use crate::sphere::Sphere;
+use crate::{sphere::Sphere, camera::Camera};
 
 use rayon::prelude::*;
 
@@ -177,9 +178,7 @@ fn main() {
     ];
 
     // setup rendering data
-    let aspect_ratio = image_width as f32 / image_height as f32;
-    let camera_matrix = ultraviolet::projection::perspective_gl((90.0 as f32).to_radians(), aspect_ratio, 0.0001, 10000.0);
-    let inverse_camera_matrix = camera_matrix.inversed();
+    let camera = Camera::new(20.0, image_width as f32 / image_height as f32, Vec3::new(-2.0, 2.0, 1.0), Vec3::new(0.0, 0.0, -1.0));
     let scanlines = (0..image_height).collect::<Vec<i32>>();
 
     println!("Rendering {}x{} image @ {} spp; depth {}...", image_width, image_height, samples_per_pixel, max_depth);
@@ -211,17 +210,11 @@ fn main() {
             for _sample in 0..samples_per_pixel{
                 let x_offset: f32 = rand::random(); 
                 let y_offset: f32 = rand::random(); 
+   
+                let u = (x as f32 + x_offset) / image_width as f32;
+                let v = (*y as f32 + y_offset) / image_height as f32;
 
-                let ray: Ray = Ray{
-                    direction: (inverse_camera_matrix * Vec4::new(
-                        ((x as f32 + x_offset) / image_width as f32) * 2.0 - 1.0,
-                        ((*y as f32 + y_offset) / image_height as f32) * 2.0 - 1.0,
-                        1.0,
-                        1.0
-                    )).xyz().normalized(), 
-
-                    origin: Vec3::new(0.0,0.0,0.0)
-                };
+                let ray = camera.get_ray(u, v);
 
                 local_pixel += trace_ray(ray, &scene, max_depth);
             }
