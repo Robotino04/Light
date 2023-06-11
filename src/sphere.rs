@@ -10,7 +10,7 @@ pub struct Sphere{
 }
 
 impl Hittable for Sphere{
-    fn hit(&self, ray: Ray, hit: &mut HitResult) -> bool{
+    fn hit(&self, ray: Ray, hit: &mut HitResult, min_distance: f32) -> bool{
         let oc = ray.origin - self.center;
         let a = ray.direction.mag_sq();
         let half_b =  oc.dot(ray.direction);
@@ -21,15 +21,23 @@ impl Hittable for Sphere{
             return false;
         }
 
-        let t = (-half_b - discriminant.sqrt() ) / a;
-        if t < hit.t && t >= 0.0{
-            hit.t = t;
-            hit.normal = (ray.at(t) - self.center).normalized();
-            hit.material = Some(self.material);
-                
-            return true;
+        let sqrt_discriminant = discriminant.sqrt();
+
+        // try the first intersection
+        let mut t = (-half_b - sqrt_discriminant) / a;
+        if t < min_distance || t > hit.t {
+            // try the second intersection
+            t = (-half_b + sqrt_discriminant) / a;
+            if t < min_distance || t > hit.t {
+                return false;
+            }
         }
-        return false;
+
+        hit.t = t;
+        hit.material = Some(self.material);
+        hit.set_face_normal(ray.direction, (ray.at(t) - self.center) / self.radius);
+
+        return true;
     }
-}
+}   
 

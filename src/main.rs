@@ -41,22 +41,37 @@ fn random_on_unit_sphere() -> Vec3{
     random_in_unit_sphere().normalized()
 }
 
+fn refract(entering_vector: Vec3, normal: Vec3, ior_quotient: f32) -> Vec3{
+    let cos_theta = normal.dot(-entering_vector).min(1.0);
+    let r_out_perp = ior_quotient * (entering_vector + cos_theta*normal);
+    let r_out_parallel = -(1.0 - r_out_perp.mag_sq()).abs().sqrt() * normal;
+    return r_out_perp + r_out_parallel;
+}
+
+fn schlick_reflectance(cos_theta: f32, ior_current: f32, ior_new: f32) -> f32 {
+    // Use Schlick's approximation for reflectance.
+    let mut r0 = (ior_current - ior_new) / (ior_current + ior_new);
+    r0 = r0*r0;
+    return r0 + (1.0 - r0) * (1.0 - cos_theta).powi(5);
+}
+
+
 fn trace_ray(ray: Ray, scene: &impl Hittable, depth: i32) -> Vec3{
     if depth == 0{
         return Vec3::new(0.0, 0.0, 0.0);
     }
     let mut hit: HitResult = HitResult::default();
     
-    scene.hit(ray, &mut hit);
+    scene.hit(ray, &mut hit, 1e-5);
 
-    return match hit.material {
+    match hit.material {
         Some(mat) => {
             match mat {
                 material::Material::NormalMaterial() => hit.normal*0.5 + Vec3::new(0.5, 0.5, 0.5),
                 material::Material::DiffuseMaterial { albedo } => {
                     let target = hit.normal + random_on_unit_sphere();
                     let new_ray: Ray = Ray{
-                        origin: ray.at(hit.t) + hit.normal * 0e-5,
+                        origin: ray.at(hit.t),
                         direction: target.normalized(),
                     };
                     return albedo * trace_ray(new_ray, scene, depth-1)
@@ -69,14 +84,40 @@ fn trace_ray(ray: Ray, scene: &impl Hittable, depth: i32) -> Vec3{
                     }
                     direction.normalize();
                     let new_ray: Ray = Ray{
-                        origin: ray.at(hit.t) + hit.normal * 0e-5,
+                        origin: ray.at(hit.t),
                         direction,
                     };
                     return albedo * trace_ray(new_ray, scene, depth-1)
                 }
-             }
+                material::Material::DielectricMaterial { albedo, ior } => {
+                    // assume the other material is always air
+                    let ior_air = 1.0;
+
+                    let ior_current = if hit.is_front_face {ior_air} else {ior};
+                    let ior_new = if hit.is_front_face {ior} else {ior_air};
+                    let ior_quotient = ior_current/ior_new;
+                    
+                    let cos_theta = hit.normal.dot(-ray.direction).min(1.0);
+                    let sin_theta = (1.0 - cos_theta*cos_theta).sqrt();
+
+                    let cannot_refract = ior_quotient * sin_theta > 1.0;
+                    let direction = if cannot_refract || schlick_reflectance(cos_theta, ior_current, ior_new) > rand::random::<f32>(){
+                        ray.direction.reflected(hit.normal) 
+                    }
+                    else{
+                        refract(ray.direction, hit.normal, ior_quotient)
+                    };
+
+                    let new_ray: Ray = Ray{
+                        origin: ray.at(hit.t),
+                        direction,
+                    };
+                    return albedo * trace_ray(new_ray, scene, depth-1);
+                }
+            }
+
         },
-        None => sample_background_gradient(ray),
+        None => return sample_background_gradient(ray),
     }
 }
 
@@ -96,16 +137,26 @@ fn main() {
         Box::new(Sphere{
             center: Vec3::new(-1.0,0.0,-1.0),
             radius: 0.5,
-            material: material::Material::MetallicMaterial{
-                albedo: Vec3::new(0.8,0.8,0.8),
-                roughness: 0.3,
-            }
+            material:
+                material::Material::DielectricMaterial{
+                    albedo: Vec3::new(1.0,1.0,1.0),
+                    ior: 1.5, 
+                }
+        }),
+        Box::new(Sphere{
+            center: Vec3::new(-1.0,0.0,-1.0),
+            radius: -0.4,
+            material:
+                material::Material::DielectricMaterial{
+                    albedo: Vec3::new(1.0,1.0,1.0),
+                    ior: 1.5, 
+                }
         }),
         Box::new(Sphere{
             center: Vec3::new(0.0,0.0,-1.0),
             radius: 0.5,
             material: material::Material::DiffuseMaterial{
-                albedo: Vec3::new(0.7,0.3,0.3),
+                albedo: Vec3::new(0.1, 0.2, 0.5),
             }
         }),
         Box::new(Sphere{
@@ -113,7 +164,7 @@ fn main() {
             radius: 0.5,
             material: material::Material::MetallicMaterial{
                 albedo: Vec3::new(0.8,0.6,0.2),
-                roughness: 1.0,
+                roughness: 0.0,
             }
         }),
         Box::new(Sphere{
@@ -167,7 +218,7 @@ fn main() {
                         ((*y as f32 + y_offset) / image_height as f32) * 2.0 - 1.0,
                         1.0,
                         1.0
-                    )).xyz(), 
+                    )).xyz().normalized(), 
 
                     origin: Vec3::new(0.0,0.0,0.0)
                 };
