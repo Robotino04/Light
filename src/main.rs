@@ -178,7 +178,12 @@ fn main() {
     ];
 
     // setup rendering data
-    let camera = Camera::new(20.0, image_width as f32 / image_height as f32, Vec3::new(-2.0, 2.0, 1.0), Vec3::new(0.0, 0.0, -1.0));
+    let camera_pos = Vec3::new(3.0, 3.0, 2.0);
+    let target_pos = Vec3::new(0.0, 0.0, -1.0);
+    let depth_of_field = (camera_pos - target_pos).mag();
+    let aperture_size = 0.0;
+
+    let camera = Camera::new(camera_pos, target_pos, 19.0, image_width as f32 / image_height as f32, aperture_size, depth_of_field);
     let scanlines = (0..image_height).collect::<Vec<i32>>();
 
     println!("Rendering {}x{} image @ {} spp; depth {}...", image_width, image_height, samples_per_pixel, max_depth);
