@@ -1,6 +1,0 @@
-[submodule "deps/ANSI"]
-	path = old_cpp/deps/ANSI
-	url = git@github.com:Robotino04/ANSI.git
-[submodule "deps/glm"]
-	path = old_cpp/deps/glm
-	url = https://github.com/g-truc/glm
