@@ -42,6 +42,48 @@ impl Image{
         return Ok(());
     }
 
+    pub fn get_bytes_inverse_y(&self) -> Vec<u8>{
+        let mut bytes: Vec<u8> = Vec::new();
+       
+        for y in (0..self.height).rev() {
+            for x in 0..self.width{
+                let mut pixel_mut = self[(x, y)];
+                pixel_mut.clamp(Vec3::new(0.0, 0.0, 0.0), Vec3 { x: 1.0, y: 1.0, z: 1.0});
+                // gamma correct for gamma=2
+                pixel_mut.x = pixel_mut.x.sqrt();
+                pixel_mut.y = pixel_mut.y.sqrt();
+                pixel_mut.z = pixel_mut.z.sqrt();
+                pixel_mut *= 255.0;
+                bytes.push(pixel_mut.x as u8);
+                bytes.push(pixel_mut.y as u8);
+                bytes.push(pixel_mut.z as u8);
+            }
+        }
+
+        return bytes; 
+    }
+
+    pub fn get_bytes(&self) -> Vec<u8>{
+        let mut bytes: Vec<u8> = Vec::new();
+       
+        for y in 0..self.height {
+            for x in 0..self.width{
+                let mut pixel_mut = self[(x, y)];
+                pixel_mut.clamp(Vec3::new(0.0, 0.0, 0.0), Vec3 { x: 1.0, y: 1.0, z: 1.0});
+                // gamma correct for gamma=2
+                pixel_mut.x = pixel_mut.x.sqrt();
+                pixel_mut.y = pixel_mut.y.sqrt();
+                pixel_mut.z = pixel_mut.z.sqrt();
+                pixel_mut *= 255.0;
+                bytes.push(pixel_mut.x as u8);
+                bytes.push(pixel_mut.y as u8);
+                bytes.push(pixel_mut.z as u8);
+            }
+        }
+
+        return bytes; 
+    }
+
     pub fn width(&self) -> i32 {self.width}
     pub fn height(&self) -> i32 {self.height}
 }
