@@ -100,8 +100,24 @@ name = "light"
 version = "0.1.0"
 dependencies = [
  "rand",
+ "ultraviolet",
+]
+
+[[package]]
+name = "light-cli"
+version = "0.1.0"
+dependencies = [
+ "light",
+ "rand",
  "rayon",
  "ultraviolet",
+]
+
+[[package]]
+name = "light-gui"
+version = "0.1.0"
+dependencies = [
+ "rand",
 ]
 
 [[package]]
