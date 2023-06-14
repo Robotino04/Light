@@ -65,7 +65,7 @@ fn trace_ray(ray: Ray, scene: &impl Hittable, depth: i32) -> Vec3{
     }
     let mut hit: HitResult = HitResult::default();
     
-    scene.hit(ray, &mut hit, 1e-5);
+    scene.hit(ray, &mut hit, 1e-4);
 
     match hit.material {
         Some(mat) => {
@@ -131,9 +131,9 @@ enum ProgressMessage{
 
 fn main() {
     let mut cube = Mesh::from_obj("meshes/default_cube.obj").unwrap();
-    cube.apply_matrix(Mat4::from_translation(Vec3::new(1.0, 0.0, -1.0)));
+    cube.apply_matrix(Mat4::from_translation(Vec3::new(1.0, 0.0, -1.0)) * Mat4::from_scale(0.9));
 
-    let protected_image: Mutex<Image> = Mutex::new(Image::new(400, 225));
+    let protected_image: Mutex<Image> = Mutex::new(Image::new(1920, 1080));
     let image_width: i32 = protected_image.lock().unwrap().width();
     let image_height: i32 = protected_image.lock().unwrap().height();
     let samples_per_pixel: usize = 100;
