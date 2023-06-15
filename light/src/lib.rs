@@ -10,3 +10,4 @@ pub mod triangle;
 pub mod random;
 pub mod trace_ray;
 pub mod math_utils;
+pub mod image_filters;

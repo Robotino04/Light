@@ -1,18 +1,13 @@
-use std::{time::Instant, io::{stdout, Write}, sync::{Mutex, mpsc}, thread};
+use std::{time::Instant, io::{stdout, Write}, sync::{Mutex, Arc}, thread};
 use light::{mesh::Mesh, image::Image, hittable::Hittable, sphere::Sphere, material::Material, camera::Camera, trace_ray};
 use rayon::prelude::*;
 use ultraviolet::{self, Mat4, Vec3};
-
-enum ProgressMessage{
-    AddScanline,
-    Quit,
-}
 
 fn main() {
     let mut cube = Mesh::from_obj("meshes/default_cube.obj").unwrap();
     cube.apply_matrix(Mat4::from_translation(Vec3::new(1.0, 0.0, -1.0)) * Mat4::from_scale(0.9));
 
-    let protected_image: Mutex<Image> = Mutex::new(Image::new(1920, 1080));
+    let protected_image: Arc<Mutex<Image>> = Arc::new(Mutex::new(Image::new(1920, 1080)));
     let image_width: i32 = protected_image.lock().unwrap().width();
     let image_height: i32 = protected_image.lock().unwrap().height();
     let samples_per_pixel: usize = 1000;
@@ -75,53 +70,72 @@ fn main() {
     let aperture_size = 0.15;
 
     let camera = Camera::new(camera_pos, target_pos, 35.0, image_width as f32 / image_height as f32, aperture_size, depth_of_field);
-    let scanlines = (0..image_height).collect::<Vec<i32>>();
 
     println!("Rendering {}x{} image @ {} spp; depth {}...", image_width, image_height, samples_per_pixel, max_depth);
-    
-    // setup parallelism
     
     // limit to one thread
     //rayon::ThreadPoolBuilder::new().num_threads(1).build_global().unwrap();
     
-    let (tx_progress, rx_progress) = mpsc::channel::<ProgressMessage>();
-    let progress_bar_thread = thread::spawn(move || {
-        let mut progress: i32 = 0;
-        loop{
-            match rx_progress.recv().unwrap_or(ProgressMessage::Quit){
-                ProgressMessage::AddScanline => {
-                    progress += 1;
-                    print!("[{:<50}]\r", "#".repeat((progress*50 / (image_height-1)) as usize));
-                    stdout().flush().unwrap();
-                },
-                ProgressMessage::Quit => break,
-            }
-        }
-    });
-
+    let mut saving_thread: Option<thread::JoinHandle<()>> = None;
+    let scanlines = (0..image_height).collect::<Vec<i32>>();
     let rendering_start = Instant::now();
-    scanlines.par_iter().for_each_with(tx_progress.clone(), |tx_progress, y: &i32|{ 
-        for x in 0..image_width{
-            let mut local_pixel: Vec3 = Vec3::new(0.0, 0.0, 0.0);
-            for _sample in 0..samples_per_pixel{
+    for sample in 0..samples_per_pixel{
+        print!("\r[{:>width$}/{:>width$}][{:>6.2}%]{} Rendering...{:>10}",
+                sample+1, samples_per_pixel,
+                (sample+1) as f32 / samples_per_pixel as f32 * 100.0,
+                match saving_thread {Some(_) => "[Saving]", None => ""},
+                "",
+                width = samples_per_pixel.to_string().len()
+        );
+        stdout().flush().unwrap();
+        scanlines.par_iter().for_each_with(protected_image.clone(), |protected_image, y: &i32|{ 
+            let mut this_row: Vec<Vec3> = vec![Vec3::new(0.0, 0.0, 0.0); image_width as usize];
+            for x in 0..image_width{
                 let x_offset: f32 = rand::random(); 
                 let y_offset: f32 = rand::random(); 
-   
+
                 let u = (x as f32 + x_offset) / image_width as f32;
                 let v = (*y as f32 + y_offset) / image_height as f32;
 
                 let ray = camera.get_ray(u, v);
 
-                local_pixel += trace_ray::trace_ray(ray, &scene, max_depth);
+                this_row[x as usize] += trace_ray::trace_ray(ray, &scene, max_depth);
             }
-            protected_image.lock().unwrap()[(x, *y)] = local_pixel / samples_per_pixel as f32;
+            let mut image = protected_image.lock().unwrap();
+            for x in 0..image_width{
+                image[(x, *y)] += this_row[x as usize];
+            }
+        });
+        if sample % 40 == 0{
+            let mut image_copy = protected_image.lock().unwrap().clone();
+            saving_thread = Some(thread::spawn(move || {
+                // average all samples
+                for x in 0..image_width{
+                    for y in 0..image_height{
+                        image_copy[(x, y)] /= (sample+1) as f32;
+                    }
+                }
+                image_copy.save_to_file("/tmp/test.ppm").unwrap();
+            }));
         }
-        tx_progress.send(ProgressMessage::AddScanline).unwrap();
-    });
-    tx_progress.send(ProgressMessage::Quit).unwrap();
-    progress_bar_thread.join().unwrap();
+        match &saving_thread{
+            Some(thread) => {
+                if thread.is_finished(){
+                    saving_thread = None;
+                }
+            },
+            None => {}, 
+        };
+    }
     println!();
     println!("Rendering took {:.2?}", rendering_start.elapsed());
 
-    protected_image.lock().unwrap().save_to_file("/tmp/test.ppm").unwrap();
+    // average all samples
+    let mut image = protected_image.lock().unwrap();
+    for x in 0..image_width{
+        for y in 0..image_height{
+            image[(x, y)] /= samples_per_pixel as f32;
+        }
+    }
+    image.save_to_file("/tmp/test.ppm").unwrap();
 }
