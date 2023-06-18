@@ -2,7 +2,7 @@ use sdl2::pixels::Color;
 use sdl2::event::Event;
 use sdl2::keyboard::Keycode;
 use std::{time::{Duration, Instant}, sync::{Mutex, atomic::{AtomicBool, AtomicUsize}, Arc}, thread, io::{stdout, Write}};
-use light::{mesh::Mesh, image::Image, hittable::Hittable, sphere::Sphere, material::Material, camera::Camera, trace_ray, image_filters::{gamma_correct, average_samples}};
+use light::{mesh::Mesh, image::Image, hittable::Hittable, sphere::Sphere, material::Material, camera::Camera, trace_ray, image_filters::{gamma_correct, average_samples}, importing::load_from_blender};
 use rayon::prelude::*;
 use ultraviolet::{self, Mat4, Vec3};
 
@@ -16,8 +16,9 @@ fn main() {
     let mut cube = Mesh::from_obj("meshes/default_cube.obj").unwrap();
     cube.apply_matrix(Mat4::from_translation(Vec3::new(1.0, 0.0, -1.0)) * Mat4::from_scale(0.9));
 
+    let scene = load_from_blender("/tmp/blender_export.toml").unwrap(); 
 
-   let scene: Vec<Box<dyn Hittable + Sync + Send>> = vec![
+    let scene: Vec<Box<dyn Hittable + Sync + Send>> = vec![
         Box::new(Sphere{
             center: Vec3::new(-1.0,0.0,-1.0),
             radius: 0.5,
@@ -40,7 +41,7 @@ fn main() {
             center: Vec3::new(0.0,1.0,-3.0),
             radius: 0.5,
             material: Material::EmissiveMaterial{
-                emission_color: Vec3::new(0.6, 0.3, 0.2),
+                emission_color: Vec3::new(1.0, 0.3, 0.0),
                 strength: 15.0,
             }
         }),
@@ -65,7 +66,7 @@ fn main() {
                 albedo: Vec3::new(0.8, 0.8, 0.8),
             },
         }),
-    ];
+        ];
 
     // setup rendering data
     let camera_pos = Vec3::new(-3.0, 3.0, 2.0);

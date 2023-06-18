@@ -12,6 +12,7 @@ fn random_in_unit_disk() -> Vec3{
     }
 }
 
+#[derive(Default)]
 pub struct Camera{
     pos: Vec3,
     lower_left_corner_world_space: Vec3,
