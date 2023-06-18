@@ -4,7 +4,7 @@ use ultraviolet::{Vec3, Vec2, Mat4};
 
 use crate::{triangle::Triangle, material::Material, hittable::Hittable, ray::Ray, hit_result::HitResult};
 
-#[derive( Clone)]
+#[derive(Clone)]
 pub struct Mesh{
     pub triangles: Vec<Triangle>,
     pub material: Material,
