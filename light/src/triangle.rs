@@ -47,15 +47,14 @@ impl Hittable for Triangle{
             let face_normal = edge2.cross(edge1);
 
             let mut interpolation_vec = Vec3{
-            x: face_normal.dot(edge1.cross(self.vertices[1] - hit_point)),
-            y: face_normal.dot(edge2.cross(hit_point - self.vertices[2])),
-            z: 0.0,
+                x: face_normal.dot(edge1.cross(self.vertices[1] - hit_point)),
+                y: face_normal.dot(edge2.cross(hit_point - self.vertices[2])),
+                z: 0.0,
             };
             interpolation_vec /= face_normal.mag_sq();
             interpolation_vec.z = 1.0 - interpolation_vec.x - interpolation_vec.y;
 
-            hit.normal = (self.normals[0] * interpolation_vec.x + self.normals[1] * interpolation_vec.y + self.normals[2] * interpolation_vec.z).normalized();
-  
+            hit.set_face_normal(ray.direction, (self.normals[0] * interpolation_vec.x + self.normals[1] * interpolation_vec.y + self.normals[2] * interpolation_vec.z).normalized());
             return true;
         }
         else{ // This means that there is a line intersection but not a ray intersection.
