@@ -4,20 +4,12 @@ use sdl2::keyboard::Keycode;
 use std::{time::{Duration, Instant}, sync::{Mutex, atomic::{AtomicBool, AtomicUsize}, Arc}, thread, io::{stdout, Write}};
 use light::{mesh::Mesh, image::Image, hittable::Hittable, sphere::Sphere, material::Material, camera::Camera, trace_ray, image_filters::{gamma_correct, average_samples}, importing::load_from_blender};
 use rayon::prelude::*;
-use ultraviolet::{self, Mat4, Vec3};
+use ultraviolet::{self, Mat4, Vec3, Rotor3};
 
 fn main() {
-    let protected_image: Arc<Mutex<Image>> = Arc::new(Mutex::new(Image::new(1920, 1080)));
-    let image_width: i32 = protected_image.lock().unwrap().width();
-    let image_height: i32 = protected_image.lock().unwrap().height();
-    let samples_per_pixel: usize = 1000;
-    let max_depth: i32 = 20;
+    let mut scene = load_from_blender("/tmp/blender_export.toml").unwrap(); 
 
-    let mut cube = Mesh::from_obj("meshes/default_cube.obj").unwrap();
-    cube.apply_matrix(Mat4::from_translation(Vec3::new(1.0, 0.0, -1.0)) * Mat4::from_scale(0.9));
-
-    let scene = load_from_blender("/tmp/blender_export.toml").unwrap(); 
-
+    /*
     let scene: Vec<Box<dyn Hittable + Sync + Send>> = vec![
         Box::new(Sphere{
             center: Vec3::new(-1.0,0.0,-1.0),
@@ -55,7 +47,7 @@ fn main() {
         Box::new(Mesh{
             triangles: cube.triangles,
             material: Material::MetallicMaterial{
-                albedo: Vec3::new(0.8,0.6,0.2),
+                albedo: Vec3::new(0.8,0.6,0.2), 
                 roughness: 0.0,
             }
         }),
@@ -66,24 +58,31 @@ fn main() {
                 albedo: Vec3::new(0.8, 0.8, 0.8),
             },
         }),
-        ];
+    ];
 
     // setup rendering data
     let camera_pos = Vec3::new(-3.0, 3.0, 2.0);
     let target_pos = Vec3::new(0.0, 0.0, -1.0);
     let depth_of_field = (camera_pos - target_pos).mag();
-    let aperture_size = 0.15;
+    let aperture_size = 0.15
 
     let camera = Camera::new(camera_pos, target_pos, 35.0, image_width as f32 / image_height as f32, aperture_size, depth_of_field);
-    let scanlines = (0..image_height).collect::<Vec<i32>>();
+    */
+    // scene.camera = Camera::new(Vec3::new( 53.37586212158203,38.76536560058594,56.91283416748047), Vec3::new(0.0, 0.0, -1.0),  39.597755335771296, 1920.0/1080.0, 0.0, 1.0);
+    
+    let protected_image: Arc<Mutex<Image>> = Arc::new(Mutex::new(Image::new(scene.width, scene.height)));
+    let samples_per_pixel: usize = 1000;
+    let max_depth: i32 = 20;
 
-    println!("Rendering {}x{} image @ {} spp; depth {}...", image_width, image_height, samples_per_pixel, max_depth);
+    let scanlines = (0..scene.height).collect::<Vec<u32>>();
+
+    println!("Rendering {}x{} image @ {} spp; depth {}...", scene.width, scene.height, samples_per_pixel, max_depth);
 
 
     // setup parallelism
     
     // limit to one thread
-    //rayon::ThreadPoolBuilder::new().num_threads(1).build_global().unwrap();
+    rayon::ThreadPoolBuilder::new().num_threads(1).build_global().unwrap();
    
     let should_end = Arc::new(AtomicBool::new(false));
     let next_sample: Arc<AtomicUsize> = Arc::new(AtomicUsize::new(1));
@@ -97,7 +96,7 @@ fn main() {
         let sdl_context = sdl2::init().unwrap();
         let video_subsystem = sdl_context.video().unwrap();
 
-        let window = video_subsystem.window("Light rendering", image_width as u32, image_height as u32)
+        let window = video_subsystem.window("Light rendering", scene.width, scene.height)
             .position_centered()
             .allow_highdpi()
             .build()
@@ -110,7 +109,7 @@ fn main() {
         canvas.clear();
         canvas.present();
         let texture_creator = canvas.texture_creator();
-        let mut texture = texture_creator.create_texture_target(Some(sdl2::pixels::PixelFormatEnum::RGB24), image_width as u32, image_height as u32).unwrap();
+        let mut texture = texture_creator.create_texture_target(Some(sdl2::pixels::PixelFormatEnum::RGB24), scene.width, scene.height).unwrap();
 
         let mut event_pump = sdl_context.event_pump().unwrap();
         while !display_thread_should_end.load(std::sync::atomic::Ordering::Relaxed) {
@@ -131,7 +130,7 @@ fn main() {
                            .apply_filter(|x| gamma_correct(2.0, x))
                            .get_bytes_inverse_y()
                            .as_slice()
-                           , (3 * image_width) as usize).unwrap();
+                           , (3 * scene.width) as usize).unwrap();
 
             canvas.copy_ex(&texture, None, None, 0.0, None, false, false).unwrap();
 
@@ -151,21 +150,21 @@ fn main() {
                 width = samples_per_pixel.to_string().len()
         );
         stdout().flush().unwrap();
-        scanlines.par_iter().for_each_with(protected_image.clone(), |protected_image, y: &i32|{ 
-            let mut this_row: Vec<Vec3> = vec![Vec3::new(0.0, 0.0, 0.0); image_width as usize];
-            for x in 0..image_width{
+        scanlines.par_iter().for_each_with(protected_image.clone(), |protected_image, y: &u32|{ 
+            let mut this_row: Vec<Vec3> = vec![Vec3::new(0.0, 0.0, 0.0); scene.width as usize];
+            for x in 0..scene.width{
                 let x_offset: f32 = rand::random(); 
                 let y_offset: f32 = rand::random(); 
 
-                let u = (x as f32 + x_offset) / image_width as f32;
-                let v = (*y as f32 + y_offset) / image_height as f32;
+                let u = (x as f32 + x_offset) / scene.width as f32;
+                let v = (*y as f32 + y_offset) / scene.height as f32;
 
-                let ray = camera.get_ray(u, v);
+                let ray = scene.camera.get_ray(u, v);
 
                 this_row[x as usize] += trace_ray::trace_ray(ray, &scene, max_depth);
             }
             let mut image = protected_image.lock().unwrap();
-            for x in 0..image_width{
+            for x in 0..scene.width{
                 image[(x, *y)] += this_row[x as usize];
             }
         });
