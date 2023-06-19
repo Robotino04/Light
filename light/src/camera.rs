@@ -39,7 +39,6 @@ impl Camera{
         let width_world_space = depth_of_field * image_width * u;
         let height_world_space = depth_of_field * image_height * v;
 
-        
         Camera{
             pos,
             width_world_space,
@@ -53,7 +52,7 @@ impl Camera{
         // depth of field
         let point_on_lens = self.lens_radius * random_in_unit_disk();
         let offset = self.u * point_on_lens.x + self.v * point_on_lens.y;
-    
+   
         Ray{
             direction: (self.lower_left_corner_world_space + x*self.width_world_space + y*self.height_world_space - self.pos - offset).normalized(),
             origin: self.pos + offset, 

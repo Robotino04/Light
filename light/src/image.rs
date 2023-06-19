@@ -5,12 +5,12 @@ use ultraviolet::Vec3;
 #[derive(Debug, Clone)]
 pub struct Image{
     pixels: Vec<Vec3>,
-    width: i32,
-    height: i32,
+    width: u32,
+    height: u32,
 }
 
 impl Image{
-    pub fn new(width: i32, height:i32) -> Image{
+    pub fn new(width: u32, height: u32) -> Image{
         return Image{
             pixels: vec![Vec3{x: 0.0, y: 0.0, z: 0.0}; (width*height) as usize],
             width,
@@ -71,19 +71,19 @@ impl Image{
             return self;
         }
 
-    pub fn width(&self) -> i32 {self.width}
-    pub fn height(&self) -> i32 {self.height}
+    pub fn width(&self) -> u32 {self.width}
+    pub fn height(&self) -> u32 {self.height}
 }
 
-impl Index<(i32, i32)> for Image{
+impl Index<(u32, u32)> for Image{
     type Output = Vec3;
-    fn index(&self, idx: (i32, i32)) -> &Vec3{
+    fn index(&self, idx: (u32, u32)) -> &Vec3{
         return self.pixels.index((idx.0 + idx.1 * self.width) as usize);
     }
 }
 
-impl IndexMut<(i32, i32)> for Image{
-    fn index_mut(&mut self, idx: (i32, i32)) -> &mut Vec3{
+impl IndexMut<(u32, u32)> for Image{
+    fn index_mut(&mut self, idx: (u32, u32)) -> &mut Vec3{
         return self.pixels.index_mut((idx.0 + idx.1 * self.width) as usize);
     }
 }

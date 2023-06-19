@@ -1,8 +1,8 @@
 use std::{fs::read_to_string, error::Error};
 
-use ultraviolet::Vec3;
+use ultraviolet::{Vec3, Rotor3};
 
-use crate::{parsing_error::ParsingError, mesh::Mesh, scene::Scene, camera::Camera};
+use crate::{parsing_error::ParsingError, mesh::Mesh, scene::Scene, camera::{Camera, self}, material};
 
 enum ObjectHeader{
     Mesh,
@@ -10,11 +10,6 @@ enum ObjectHeader{
     Camera,
 }
 
-macro_rules! handle_keys {
-    ($type:ty, $($key_name:ident => $key_block:block),+) => {
-   }
-
-}
 
 #[derive(Default)]
 struct CameraParameters{
@@ -32,7 +27,7 @@ pub fn load_from_blender(filename: &str) -> Result<Scene, Box<dyn Error>>{
     let file_content = read_to_string(filename)?;
 
     let mut line_number: usize = 0;
-    let mut lines = file_content.lines();
+    let mut lines = file_content.lines().peekable();
     while let Some(raw_line) = lines.next(){
         let line = raw_line.trim();
         line_number += 1;
@@ -46,13 +41,13 @@ pub fn load_from_blender(filename: &str) -> Result<Scene, Box<dyn Error>>{
                         let mut object: Option<Mesh> = None;
                         match lines.next(){
                             Some(line) => {
-                                if let [key, value] = &line.split("=").take(2).collect::<Vec<_>>()[..]{
+                                if let [key, value] = &line.split("=").map(|x| x.trim()).take(2).collect::<Vec<_>>()[..]{
                                     match *key{
                                         "mesh_file" => {
                                             object = Some(Mesh::from_obj(value)?);
                                         },
                                         _ => {
-                                            return Err(Box::new(ParsingError{filename: filename.to_owned(), line: line_number, message: format!("Unimplemented key '{}'.", key)}));
+                                            return Err(Box::new(ParsingError{filename: filename.to_owned(), line: line_number, message: format!("Unimplemented key while parsing mesh object '{}'.", key)}));
                                         }
                                     }
                                 }
@@ -62,34 +57,61 @@ pub fn load_from_blender(filename: &str) -> Result<Scene, Box<dyn Error>>{
                             },
                             None => { return Err(Box::new(ParsingError{filename: filename.to_owned(), line: line_number, message: "Hit end of file while parsing mesh object.".to_string()})); },
                         };
-                        if let Some(obj) = object{
+                        if let Some(mut obj) = object{
+                            obj.material = material::Material::NormalMaterial();
                             scene.objects.push(Box::new(obj));
-                        }
+                        }   
                         else{
                             return Err(Box::new(ParsingError{filename: filename.to_owned(), line: line_number, message: "No mesh file proveded for mesh file object".to_owned()}));
                         }
                     },
                     ObjectHeader::Camera => {
                         let mut cam_params: CameraParameters = CameraParameters::default();
-                        match lines.next(){
-                            Some(line) => {
-                                if let [key, value] = &line.split("=").map(|x| x.trim()).take(2).collect::<Vec<_>>()[..]{
-                                    match *key{
-                                        "fov" => {
-                                            cam_params.fov = value.parse::<f32>()?;
-                                        },
-                                        _ => {
-                                            return Err(Box::new(ParsingError{filename: filename.to_owned(), line: line_number, message: format!("Unimplemented key '{}'.", key)}));
+                        cam_params.depth_of_field = 1.0;
+                        // check if the first char on the next line == '['
+                        while (*lines.peek().or(Some(&"[]")).unwrap()).chars().nth(0) != Some('['){
+                            match lines.next(){
+                                Some(line) => {
+                                    if let [key, value] = &line.split("=").map(|x| x.trim()).take(2).collect::<Vec<_>>()[..]{
+                                        match *key{
+                                            "height" => {
+                                                scene.height = value.trim().parse()?;
+                                            },
+                                            "width" => {
+                                                scene.width = value.trim().parse()?;
+                                            },
+                                            "position" => {
+                                                let mut coords = value.split(";").map(|x| x.trim()).map(|x| x.parse::<f32>());
+                                                cam_params.pos = Vec3{
+                                                    x: coords.next().unwrap()?,
+                                                    y: coords.next().unwrap()?,
+                                                    z: coords.next().unwrap()?,
+                                                };
+                                            },
+                                            "target" => {
+                                                let mut coords = value.split(";").map(|x| x.trim()).map(|x| x.parse::<f32>());
+                                                cam_params.target= Vec3{
+                                                    x: coords.next().unwrap()?,
+                                                    y: coords.next().unwrap()?,
+                                                    z: coords.next().unwrap()?,
+                                                };
+                                            },
+                                            "fov" => {
+                                                cam_params.fov = value.parse::<f32>()?;
+                                            },
+                                            _ => {
+                                                return Err(Box::new(ParsingError{filename: filename.to_owned(), line: line_number, message: format!("Unimplemented key while parsing camera {}'.", key)}));
+                                            }
                                         }
                                     }
-                                }
-                                else{
-                                    return Err(Box::new(ParsingError{filename: filename.to_owned(), line: line_number, message: "Hit end of line while parsing key.".to_owned()}));
-                                }
-                            },
-                            None => { return Err(Box::new(ParsingError{filename: filename.to_owned(), line: line_number, message: "Hit end of file while parsing mesh object.".to_string()})); },
-                        };
-                        scene.camera = Camera::new(cam_params.pos, cam_params.target, cam_params.fov, cam_params.aspect_ratio, cam_params.aperture_size, cam_params.depth_of_field); 
+                                    else{
+                                        return Err(Box::new(ParsingError{filename: filename.to_owned(), line: line_number, message: "Hit end of line while parsing key.".to_owned()}));
+                                    }
+                                },
+                                None => { return Err(Box::new(ParsingError{filename: filename.to_owned(), line: line_number, message: "Hit end of file while parsing mesh object.".to_string()})); },
+                            };
+                        }
+                        scene.camera = Camera::new(cam_params.pos, cam_params.target, cam_params.fov, scene.width as f32 / scene.height as f32, cam_params.aperture_size, cam_params.depth_of_field); 
                     },
                     ObjectHeader::Sphere =>  {todo!();}
                 }
