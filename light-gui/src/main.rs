@@ -71,7 +71,7 @@ fn main() {
     // scene.camera = Camera::new(Vec3::new( 53.37586212158203,38.76536560058594,56.91283416748047), Vec3::new(0.0, 0.0, -1.0),  39.597755335771296, 1920.0/1080.0, 0.0, 1.0);
     
     let protected_image: Arc<Mutex<Image>> = Arc::new(Mutex::new(Image::new(scene.width, scene.height)));
-    let samples_per_pixel: usize = 1000;
+    let samples_per_pixel: usize = 10000;
     let max_depth: i32 = 20;
 
     let scanlines = (0..scene.height).collect::<Vec<u32>>();
@@ -82,7 +82,7 @@ fn main() {
     // setup parallelism
     
     // limit to one thread
-    rayon::ThreadPoolBuilder::new().num_threads(1).build_global().unwrap();
+    //rayon::ThreadPoolBuilder::new().num_threads(1).build_global().unwrap();
    
     let should_end = Arc::new(AtomicBool::new(false));
     let next_sample: Arc<AtomicUsize> = Arc::new(AtomicUsize::new(1));

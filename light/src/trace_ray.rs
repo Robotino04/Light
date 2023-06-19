@@ -85,6 +85,6 @@ pub fn trace_ray(ray: Ray, scene: &impl Hittable, depth: i32) -> Vec3{
             }
 
         },
-        None => return 0.0*sample_background_gradient(ray),
+        None => return 0.03*sample_background_gradient(ray),
     }
 }

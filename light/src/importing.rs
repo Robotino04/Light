@@ -1,8 +1,8 @@
-use std::{fs::read_to_string, error::Error};
+use std::{fs::read_to_string, error::Error, iter::Peekable};
 
 use ultraviolet::{Vec3, Rotor3};
 
-use crate::{parsing_error::ParsingError, mesh::Mesh, scene::Scene, camera::{Camera, self}, material};
+use crate::{parsing_error::ParsingError, mesh::Mesh, scene::Scene, camera::{Camera, self}, material::{self, Material}};
 
 enum ObjectHeader{
     Mesh,
@@ -38,80 +38,12 @@ pub fn load_from_blender(filename: &str) -> Result<Scene, Box<dyn Error>>{
             Some('[') => {
                 match parse_object_header(iter, filename, line_number)?{ 
                     ObjectHeader::Mesh => {
-                        let mut object: Option<Mesh> = None;
-                        match lines.next(){
-                            Some(line) => {
-                                if let [key, value] = &line.split("=").map(|x| x.trim()).take(2).collect::<Vec<_>>()[..]{
-                                    match *key{
-                                        "mesh_file" => {
-                                            object = Some(Mesh::from_obj(value)?);
-                                        },
-                                        _ => {
-                                            return Err(Box::new(ParsingError{filename: filename.to_owned(), line: line_number, message: format!("Unimplemented key while parsing mesh object '{}'.", key)}));
-                                        }
-                                    }
-                                }
-                                else{
-                                    return Err(Box::new(ParsingError{filename: filename.to_owned(), line: line_number, message: "Hit end of line while parsing key.".to_owned()}));
-                                }
-                            },
-                            None => { return Err(Box::new(ParsingError{filename: filename.to_owned(), line: line_number, message: "Hit end of file while parsing mesh object.".to_string()})); },
-                        };
-                        if let Some(mut obj) = object{
-                            obj.material = material::Material::NormalMaterial();
-                            scene.objects.push(Box::new(obj));
-                        }   
-                        else{
-                            return Err(Box::new(ParsingError{filename: filename.to_owned(), line: line_number, message: "No mesh file proveded for mesh file object".to_owned()}));
-                        }
-                    },
+                        let mut obj = parse_mesh_object(&mut lines, filename, &mut line_number)?;
+                        obj.material = parse_material(&mut lines, filename, &mut line_number)?;
+                        scene.objects.push(Box::new(obj));
+                   },
                     ObjectHeader::Camera => {
-                        let mut cam_params: CameraParameters = CameraParameters::default();
-                        cam_params.depth_of_field = 1.0;
-                        // check if the first char on the next line == '['
-                        while (*lines.peek().or(Some(&"[]")).unwrap()).chars().nth(0) != Some('['){
-                            match lines.next(){
-                                Some(line) => {
-                                    if let [key, value] = &line.split("=").map(|x| x.trim()).take(2).collect::<Vec<_>>()[..]{
-                                        match *key{
-                                            "height" => {
-                                                scene.height = value.trim().parse()?;
-                                            },
-                                            "width" => {
-                                                scene.width = value.trim().parse()?;
-                                            },
-                                            "position" => {
-                                                let mut coords = value.split(";").map(|x| x.trim()).map(|x| x.parse::<f32>());
-                                                cam_params.pos = Vec3{
-                                                    x: coords.next().unwrap()?,
-                                                    y: coords.next().unwrap()?,
-                                                    z: coords.next().unwrap()?,
-                                                };
-                                            },
-                                            "target" => {
-                                                let mut coords = value.split(";").map(|x| x.trim()).map(|x| x.parse::<f32>());
-                                                cam_params.target= Vec3{
-                                                    x: coords.next().unwrap()?,
-                                                    y: coords.next().unwrap()?,
-                                                    z: coords.next().unwrap()?,
-                                                };
-                                            },
-                                            "fov" => {
-                                                cam_params.fov = value.parse::<f32>()?;
-                                            },
-                                            _ => {
-                                                return Err(Box::new(ParsingError{filename: filename.to_owned(), line: line_number, message: format!("Unimplemented key while parsing camera {}'.", key)}));
-                                            }
-                                        }
-                                    }
-                                    else{
-                                        return Err(Box::new(ParsingError{filename: filename.to_owned(), line: line_number, message: "Hit end of line while parsing key.".to_owned()}));
-                                    }
-                                },
-                                None => { return Err(Box::new(ParsingError{filename: filename.to_owned(), line: line_number, message: "Hit end of file while parsing mesh object.".to_string()})); },
-                            };
-                        }
-                        scene.camera = Camera::new(cam_params.pos, cam_params.target, cam_params.fov, scene.width as f32 / scene.height as f32, cam_params.aperture_size, cam_params.depth_of_field); 
+                       (scene.camera, scene.width, scene.height) = parse_camera(&mut lines, filename, &mut line_number)?;
                     },
                     ObjectHeader::Sphere =>  {todo!();}
                 }
@@ -125,6 +57,183 @@ pub fn load_from_blender(filename: &str) -> Result<Scene, Box<dyn Error>>{
     return Ok(scene);
 }
 
+fn parse_vec3(value: &str) -> Result<Vec3, Box<dyn Error>> {
+    let mut parts = value.split(";").map(|x| x.trim()).map(|x| x.parse::<f32>());
+    Ok(Vec3{
+        x: parts.next().unwrap()?,
+        y: parts.next().unwrap()?,
+        z: parts.next().unwrap()?,
+    })
+} 
+
+fn parse_material<'a, I>(lines: &mut Peekable<I>, filename: &str, line_number: &mut usize) -> Result<Material, Box<dyn Error>>
+where
+I: DoubleEndedIterator<Item = &'a str> + Clone{
+    let mut mat = Material::NormalMaterial();
+    while (*lines.peek().or(Some(&"[]")).unwrap()).chars().nth(0) != Some('['){
+        match lines.next(){
+            Some(line) => {
+                if let [key, value] = &line.split("=").map(|x| x.trim()).take(2).collect::<Vec<_>>()[..]{
+                    match *key{
+                        "material_type" => {
+                            mat = match *value{
+                                "diffuse_material" => Material::DiffuseMaterial{albedo: Vec3::one()},
+                                "metallic_material" => Material::MetallicMaterial{albedo: Vec3::one(), roughness: 0.0},
+                                "emissive_material" => Material::EmissiveMaterial{emission_color: Vec3::one(), strength: 0.5},
+                                "dielectric_material" => Material::DielectricMaterial{albedo: Vec3::one(), ior: 1.0},
+                                _ => {
+                                    return Err(Box::new(ParsingError{filename: filename.to_owned(), line: *line_number, message: format!("Unimplemented material type while parsing material '{}'.", key)}));
+                                }
+                            };
+                        },
+                        "albedo" => {
+                            match &mut mat{
+                                Material::MetallicMaterial { albedo, roughness: _} => {
+                                    *albedo = parse_vec3(value)?; 
+                                }
+                                Material::DiffuseMaterial { albedo } => {
+                                    *albedo = parse_vec3(value)?; 
+                                }
+                                Material::DielectricMaterial { albedo, ior: _ } => {
+                                    *albedo = parse_vec3(value)?;
+                                }
+                                _ => {
+                                    return Err(Box::new(ParsingError{filename: filename.to_owned(), line: *line_number, message: format!("Emissive material has no property '{}'.", key)}));
+                                }
+                            }
+                        }
+                         "ior" => {
+                            match &mut mat{
+                                Material::DielectricMaterial{ albedo: _, ior } => {
+                                    *ior = value.parse::<f32>()?; 
+                                }
+                                _ => {
+                                    return Err(Box::new(ParsingError{filename: filename.to_owned(), line: *line_number, message: format!("Emissive material has no property '{}'.", key)}));
+                                }
+                            }
+                        }
+                        "emission_color" => {
+                            match &mut mat{
+                                Material::EmissiveMaterial { emission_color, strength: _ } => {
+                                    *emission_color = parse_vec3(value)?; 
+                                }
+                                _ => {
+                                    return Err(Box::new(ParsingError{filename: filename.to_owned(), line: *line_number, message: format!("Emissive material has no property '{}'.", key)}));
+                                }
+                            }
+                        }
+                        "strength" => {
+                            match &mut mat{
+                                Material::EmissiveMaterial { emission_color: _, strength } => {
+                                    *strength = value.parse::<f32>()?; 
+                                }
+                                _ => {
+                                    return Err(Box::new(ParsingError{filename: filename.to_owned(), line: *line_number, message: format!("Emissive material has no property '{}'.", key)}));
+                                }
+                            }
+                        }
+                        "roughness" => {
+                            match &mut mat{
+                                Material::MetallicMaterial { albedo: _, roughness} => {
+                                    *roughness = value.parse::<f32>()?; 
+                                }
+                                _ => {
+                                    return Err(Box::new(ParsingError{filename: filename.to_owned(), line: *line_number, message: format!("Emissive material has no property '{}'.", key)}));
+                                }
+                            }
+                        }
+                        _ => {
+                            return Err(Box::new(ParsingError{filename: filename.to_owned(), line: *line_number, message: format!("Unimplemented key while parsing material '{}'.", key)}));
+                        }
+                    }
+                }
+                else{
+                    return Err(Box::new(ParsingError{filename: filename.to_owned(), line: *line_number, message: "Hit end of line while parsing material.".to_owned()}));
+                }
+            },
+            None => { return Err(Box::new(ParsingError{filename: filename.to_owned(), line: *line_number, message: "Hit end of file while parsing material.".to_string()})); },
+        };
+    }
+    return Ok(mat);
+} 
+
+fn parse_mesh_object<'a, I>(lines: &mut Peekable<I>, filename: &str, line_number: &mut usize) -> Result<Mesh, Box<dyn Error>>
+where
+I: DoubleEndedIterator<Item = &'a str> + Clone{
+    let mut object: Option<Mesh> = None;
+    match lines.next(){
+        Some(line) => {
+            if let [key, value] = &line.split("=").map(|x| x.trim()).take(2).collect::<Vec<_>>()[..]{
+                match *key{
+                    "mesh_file" => {
+                        object = Some(Mesh::from_obj(value)?);
+                    },
+                    _ => {
+                        return Err(Box::new(ParsingError{filename: filename.to_owned(), line: *line_number, message: format!("Unimplemented key while parsing mesh object '{}'.", key)}));
+                    }
+                }
+            }
+            else{
+                return Err(Box::new(ParsingError{filename: filename.to_owned(), line: *line_number, message: "Hit end of line while parsing key.".to_owned()}));
+            }
+        },
+        None => { return Err(Box::new(ParsingError{filename: filename.to_owned(), line: *line_number, message: "Hit end of file while parsing mesh object.".to_string()})); },
+    };
+    if let Some(mut obj) = object{
+        obj.material = material::Material::NormalMaterial();
+        return Ok(obj);
+    }   
+    else{
+        return Err(Box::new(ParsingError{filename: filename.to_owned(), line: *line_number, message: "No mesh file proveded for mesh file object".to_owned()}));
+    }
+
+}
+
+fn parse_camera<'a, I>(lines: &mut Peekable<I>, filename: &str, line_number: &mut usize) -> Result<(Camera, u32, u32), Box<dyn Error>>
+where
+I: DoubleEndedIterator<Item = &'a str> + Clone{
+    let mut cam_params: CameraParameters = CameraParameters::default();
+    cam_params.depth_of_field = 1.0;
+
+    let mut width: u32 = 400;
+    let mut height: u32 = 225;
+    // check if the first char on the next line == '['
+    while (*lines.peek().or(Some(&"[]")).unwrap()).chars().nth(0) != Some('['){
+        match lines.next(){
+            Some(line) => {
+                if let [key, value] = &line.split("=").map(|x| x.trim()).take(2).collect::<Vec<_>>()[..]{
+                    match *key{
+                        "height" => {
+                            height = value.trim().parse()?;
+                        },
+                        "width" => {
+                            width = value.trim().parse()?;
+                        },
+                        "position" => {
+                            cam_params.pos = parse_vec3(value)?;
+                        },
+                        "target" => {
+                            cam_params.target = parse_vec3(value)?;
+                       },
+                        "fov" => {
+                            cam_params.fov = value.parse::<f32>()?
+                        },
+                        _ => {
+                            return Err(Box::new(ParsingError{filename: filename.to_owned(), line: *line_number, message: format!("Unimplemented key while parsing camera {}'.", key)}));
+                        }
+                    }
+                }
+                else{
+                    return Err(Box::new(ParsingError{filename: filename.to_owned(), line: *line_number, message: "Hit end of line while parsing key.".to_owned()}));
+                }
+            },
+            None => { return Err(Box::new(ParsingError{filename: filename.to_owned(), line: *line_number, message: "Hit end of file while parsing mesh object.".to_string()})); },
+        };
+    }
+    let camera = Camera::new(cam_params.pos, cam_params.target, cam_params.fov, width as f32 / height as f32, cam_params.aperture_size, cam_params.depth_of_field);
+    return Ok((camera, width, height));
+
+}
 
 fn parse_object_header<'a, I>(mut line: I, filename: &str, line_number: usize) -> Result<ObjectHeader, Box<dyn Error>>
     where
