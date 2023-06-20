@@ -82,13 +82,16 @@ impl Mesh {
                     // vertices
                     let mut triangle = Triangle::default();
                     for i in 0..3{
-                        let mut indices = line_parts.next().unwrap().split("/");
+                        let mut part = line_parts.next().unwrap();
+                        let mut indices = part.split("/").filter(|x| x.chars().count() != 0);
                         triangle.vertices[i] = vertices[indices.next().unwrap().parse::<usize>()? - 1];
-                        triangle.uv_coordinates[i] = uvs[indices.next().unwrap().parse::<usize>()? - 1];
+                        if (!part.contains("//")){
+                            triangle.uv_coordinates[i] = uvs[indices.next().unwrap().parse::<usize>()? - 1];
+                        }
                         
                         if do_normal_smoothing{
                             triangle.normals[i] = normals[indices.next().unwrap().parse::<usize>()? - 1];
-                        } 
+                        }
                     }
                     if !do_normal_smoothing{
                         let face_normal = (triangle.vertices[1] - triangle.vertices[0]).cross(triangle.vertices[2] - triangle.vertices[0]).normalized();

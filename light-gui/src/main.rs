@@ -1,4 +1,4 @@
-use sdl2::pixels::Color;
+use sdl2::{pixels::Color, rect::Rect};
 use sdl2::event::Event;
 use sdl2::keyboard::Keycode;
 use std::{time::{Duration, Instant}, sync::{Mutex, atomic::{AtomicBool, AtomicUsize}, Arc}, thread, io::{stdout, Write}};
@@ -72,7 +72,7 @@ fn main() {
     
     let protected_image: Arc<Mutex<Image>> = Arc::new(Mutex::new(Image::new(scene.width, scene.height)));
     let samples_per_pixel: usize = 10000;
-    let max_depth: i32 = 20;
+    let max_depth: i32 = 10;
 
     let scanlines = (0..scene.height).collect::<Vec<u32>>();
 
@@ -95,8 +95,10 @@ fn main() {
 
         let sdl_context = sdl2::init().unwrap();
         let video_subsystem = sdl_context.video().unwrap();
-
-        let window = video_subsystem.window("Light rendering", scene.width, scene.height)
+ 
+        let aspect_ratio = scene.height as f32 / scene.width as f32;
+        let scaling_factor = 1920.0 / scene.width as f32;
+        let window = video_subsystem.window("Light rendering", (scaling_factor * scene.width as f32) as u32, (scaling_factor * aspect_ratio * scene.width as f32) as u32)
             .position_centered()
             .allow_highdpi()
             .build()
