@@ -10,3 +10,5 @@ rand = "0.8.5"
 rayon = "1.7.0"
 light = {path = "../light/"}
 ultraviolet = "0.9.1"
+ctrlc = {version="3.4.0", features=["termination"]}
+

@@ -11,3 +11,4 @@ sdl2 = "0.35.2"
 light = {path = "../light/"}
 rayon = "1.7.0"
 ultraviolet = "0.9.1"
+ctrlc = {version="3.4.0", features=["termination"]}
