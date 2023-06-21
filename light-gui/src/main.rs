@@ -92,12 +92,13 @@ fn main() {
     let display_thread_next_sample = next_sample.clone();
     let display_thread = thread::spawn(move || {
         // setup SDL
+        let window_width = 800;
 
         let sdl_context = sdl2::init().unwrap();
         let video_subsystem = sdl_context.video().unwrap();
  
         let aspect_ratio = scene.height as f32 / scene.width as f32;
-        let scaling_factor = 1920.0 / scene.width as f32;
+        let scaling_factor = window_width as f32 / scene.width as f32;
         let window = video_subsystem.window("Light rendering", (scaling_factor * scene.width as f32) as u32, (scaling_factor * aspect_ratio * scene.width as f32) as u32)
             .position_centered()
             .allow_highdpi()
