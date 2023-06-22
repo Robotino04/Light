@@ -1,8 +1,8 @@
 use std::{fs::read_to_string, error::Error, iter::Peekable};
 
-use ultraviolet::{Vec3, Rotor3};
+use ultraviolet::Vec3;
 
-use crate::{parsing_error::ParsingError, mesh::Mesh, scene::Scene, camera::{Camera, self}, material::{self, Material}};
+use crate::{parsing_error::ParsingError, mesh::Mesh, scene::Scene, camera::Camera, material::Material};
 
 enum ObjectHeader{
     Mesh,
@@ -16,7 +16,6 @@ struct CameraParameters{
     pub pos: Vec3,
     pub target: Vec3,
     pub fov: f32,
-    pub aspect_ratio: f32,
     pub aperture_size: f32,
     pub depth_of_field: f32,
 }
@@ -180,7 +179,7 @@ I: DoubleEndedIterator<Item = &'a str> + Clone{
         None => { return Err(Box::new(ParsingError{filename: filename.to_owned(), line: *line_number, message: "Hit end of file while parsing mesh object.".to_string()})); },
     };
     if let Some(mut obj) = object{
-        obj.material = material::Material::NormalMaterial();
+        obj.material = Material::NormalMaterial();
         return Ok(obj);
     }   
     else{

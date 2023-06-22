@@ -14,3 +14,4 @@ pub mod image_filters;
 pub mod importing;
 pub mod parsing_error;
 pub mod scene;
+pub mod bounding_box;
