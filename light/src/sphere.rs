@@ -39,10 +39,10 @@ impl Hittable for Sphere{
         return true;
     }
     fn get_min_bounds(&self) -> Vec3 {
-        return self.center - Vec3::new(self.radius, self.radius, self.radius);
+        return self.center - Vec3::new(self.radius, self.radius, self.radius) - Vec3::one() * 1e-5;
     }
     fn get_max_bounds(&self) -> Vec3 {
-        return self.center + Vec3::new(self.radius, self.radius, self.radius);
+        return self.center + Vec3::new(self.radius, self.radius, self.radius) + Vec3::one() * 1e-5;
     }
 }   
 

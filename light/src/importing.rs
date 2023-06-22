@@ -2,7 +2,7 @@ use std::{fs::read_to_string, error::Error, iter::Peekable};
 
 use ultraviolet::Vec3;
 
-use crate::{parsing_error::ParsingError, mesh::Mesh, scene::Scene, camera::Camera, material::Material};
+use crate::{parsing_error::ParsingError, mesh::Mesh, scene::Scene, camera::Camera, material::Material, bounding_box::BVH, hittable::Hittable, sphere::Sphere};
 
 enum ObjectHeader{
     Mesh,
@@ -22,6 +22,7 @@ struct CameraParameters{
 
 pub fn load_from_blender(filename: &str) -> Result<Scene, Box<dyn Error>>{
     let mut scene: Scene = Scene::default();
+    let mut objects: Vec<Box<dyn Hittable>> =Vec::new();
 
     let file_content = read_to_string(filename)?;
 
@@ -39,12 +40,16 @@ pub fn load_from_blender(filename: &str) -> Result<Scene, Box<dyn Error>>{
                     ObjectHeader::Mesh => {
                         let mut obj = parse_mesh_object(&mut lines, filename, &mut line_number)?;
                         obj.material = parse_material(&mut lines, filename, &mut line_number)?;
-                        scene.objects.push(Box::new(obj));
-                   },
+                        objects.push(Box::new(obj));
+                    },
+                    ObjectHeader::Sphere =>  {
+                        let mut obj = parse_sphere_object(&mut lines, filename, &mut line_number)?;
+                        obj.material = parse_material(&mut lines, filename, &mut line_number)?;
+                        objects.push(Box::new(obj));
+                    },
                     ObjectHeader::Camera => {
                        (scene.camera, scene.width, scene.height) = parse_camera(&mut lines, filename, &mut line_number)?;
-                    },
-                    ObjectHeader::Sphere =>  {todo!();}
+                    }
                 }
 
             }
@@ -52,6 +57,9 @@ pub fn load_from_blender(filename: &str) -> Result<Scene, Box<dyn Error>>{
             Some(x) => { return Err(Box::new(ParsingError{filename: filename.to_owned(), line: line_number, message: format!("Unknown line beginning with '{}'", x)})); },
         }
     }
+
+    scene.bvh = Some(BVH::<dyn Hittable>::build_recursive(objects));
+    // scene.bvh = Some(Box::new(objects));
 
     return Ok(scene);
 }
@@ -185,6 +193,39 @@ I: DoubleEndedIterator<Item = &'a str> + Clone{
     else{
         return Err(Box::new(ParsingError{filename: filename.to_owned(), line: *line_number, message: "No mesh file proveded for mesh file object".to_owned()}));
     }
+
+}
+
+fn parse_sphere_object<'a, I>(lines: &mut Peekable<I>, filename: &str, line_number: &mut usize) -> Result<Sphere, Box<dyn Error>>
+where
+I: DoubleEndedIterator<Item = &'a str> + Clone{
+    let mut pos = Vec3::zero();
+    let mut radius = 1.0;
+    for _ in 0..2{
+        match lines.next(){
+            Some(line) => {
+                if let [key, value] = &line.split("=").map(|x| x.trim()).take(2).collect::<Vec<_>>()[..]{
+                    match *key{
+                        "radius" => {
+                            radius = value.parse()?;
+                        },
+                        "pos" => {
+                            pos = parse_vec3(value)?;
+                        }
+                        _ => {
+                            return Err(Box::new(ParsingError{filename: filename.to_owned(), line: *line_number, message: format!("Unimplemented key while parsing sphere object '{}'.", key)}));
+                        }
+                    }
+                }
+                else{
+                    return Err(Box::new(ParsingError{filename: filename.to_owned(), line: *line_number, message: "Hit end of line while parsing key.".to_owned()}));
+                }
+            },
+            None => { return Err(Box::new(ParsingError{filename: filename.to_owned(), line: *line_number, message: "Hit end of file while parsing sphere object.".to_string()})); },
+        };
+    }
+
+    return Ok(Sphere { center: pos, radius, material: Material::NormalMaterial() });
 
 }
 
