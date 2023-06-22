@@ -21,7 +21,7 @@ fn schlick_reflectance(cos_theta: f32, ior_current: f32, ior_new: f32) -> f32 {
     return r0 + (1.0 - r0) * (1.0 - cos_theta).powi(5);
 }
 
-pub fn trace_ray(ray: Ray, scene: &impl Hittable, depth: i32) -> Vec3{
+pub fn trace_ray(ray: Ray, scene: &Box<dyn Hittable>, depth: i32) -> Vec3{
     if depth == 0{
         return Vec3::new(0.0, 0.0, 0.0);
     }

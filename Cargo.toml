@@ -1,2 +1,5 @@
 [workspace]
-members = ["light-cli", "light-gui", "light", "test"]
+members = ["light-cli", "light-gui", "light"]
+
+# [profile.release]
+# debug = 1

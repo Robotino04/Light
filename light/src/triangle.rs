@@ -61,10 +61,10 @@ impl Hittable for Triangle{
             return false;
         }
     }
-    fn get_max_bounds(&self) -> Vec3 {
-        self.vertices.iter().map(|a| *a).reduce(|a, b| a.max_by_component(b)).unwrap_or(Vec3::zero())
-    }
     fn get_min_bounds(&self) -> Vec3 {
-        self.vertices.iter().map(|a| *a).reduce(|a, b| a.min_by_component(b)).unwrap_or(Vec3::zero())
+        self.vertices.iter().map(|a| *a).reduce(|a, b| a.min_by_component(b)).unwrap() - Vec3::one() * 1e-5
+    }
+    fn get_max_bounds(&self) -> Vec3 {
+        self.vertices.iter().map(|a| *a).reduce(|a, b| a.max_by_component(b)).unwrap() + Vec3::one() * 1e-5
     }
 }
