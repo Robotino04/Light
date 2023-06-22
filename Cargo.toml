@@ -1,2 +1,2 @@
 [workspace]
-members = ["light-cli", "light-gui", "light"]
+members = ["light-cli", "light-gui", "light", "test"]

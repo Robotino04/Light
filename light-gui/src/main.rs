@@ -1,75 +1,14 @@
-use sdl2::{pixels::Color, rect::Rect};
+use sdl2::pixels::Color;
 use sdl2::event::Event;
 use sdl2::keyboard::Keycode;
 use std::{time::{Duration, Instant}, sync::{Mutex, atomic::{AtomicBool, AtomicUsize}, Arc}, thread, io::{stdout, Write}};
-use light::{mesh::Mesh, image::Image, hittable::Hittable, sphere::Sphere, material::Material, camera::Camera, trace_ray, image_filters::{gamma_correct, average_samples}, importing::load_from_blender};
+use light::{image::Image, trace_ray, image_filters::{gamma_correct, average_samples}, importing::load_from_blender};
 use rayon::prelude::*;
-use ultraviolet::{self, Mat4, Vec3, Rotor3};
+use ultraviolet::{self, Vec3};
 
 fn main() {
-    let mut scene = load_from_blender("/tmp/blender_export.toml").unwrap(); 
-
-    /*
-    let scene: Vec<Box<dyn Hittable + Sync + Send>> = vec![
-        Box::new(Sphere{
-            center: Vec3::new(-1.0,0.0,-1.0),
-            radius: 0.5,
-            material:
-                Material::DielectricMaterial{
-                    albedo: Vec3::new(1.0,1.0,1.0),
-                    ior: 1.5, 
-                }
-        }),
-        Box::new(Sphere{
-            center: Vec3::new(-1.0,0.0,-1.0),
-            radius: -0.4,
-            material:
-                Material::DielectricMaterial{
-                    albedo: Vec3::new(1.0,1.0,1.0),
-                    ior: 1.5, 
-                }
-        }),
-        Box::new(Sphere{
-            center: Vec3::new(0.0,1.0,-3.0),
-            radius: 0.5,
-            material: Material::EmissiveMaterial{
-                emission_color: Vec3::new(1.0, 0.3, 0.0),
-                strength: 15.0,
-            }
-        }),
-        Box::new(Sphere{
-            center: Vec3::new(0.0,0.0,-1.0),
-            radius: 0.5,
-            material: Material::DiffuseMaterial{
-                albedo: Vec3::new(0.1, 0.2, 0.5),
-            }
-        }),
-        Box::new(Mesh{
-            triangles: cube.triangles,
-            material: Material::MetallicMaterial{
-                albedo: Vec3::new(0.8,0.6,0.2), 
-                roughness: 0.0,
-            }
-        }),
-        Box::new(Sphere{
-            center: Vec3::new(0.0,-100.5,0.0),
-            radius: 100.0,
-            material: Material::DiffuseMaterial{
-                albedo: Vec3::new(0.8, 0.8, 0.8),
-            },
-        }),
-    ];
-
-    // setup rendering data
-    let camera_pos = Vec3::new(-3.0, 3.0, 2.0);
-    let target_pos = Vec3::new(0.0, 0.0, -1.0);
-    let depth_of_field = (camera_pos - target_pos).mag();
-    let aperture_size = 0.15
-
-    let camera = Camera::new(camera_pos, target_pos, 35.0, image_width as f32 / image_height as f32, aperture_size, depth_of_field);
-    */
-    // scene.camera = Camera::new(Vec3::new( 53.37586212158203,38.76536560058594,56.91283416748047), Vec3::new(0.0, 0.0, -1.0),  39.597755335771296, 1920.0/1080.0, 0.0, 1.0);
-    
+    let scene = load_from_blender("/tmp/blender_export.toml").unwrap(); 
+   
     let protected_image: Arc<Mutex<Image>> = Arc::new(Mutex::new(Image::new(scene.width, scene.height)));
     let samples_per_pixel: usize = 10000;
     let max_depth: i32 = 10;
@@ -92,7 +31,7 @@ fn main() {
     let display_thread_next_sample = next_sample.clone();
     let display_thread = thread::spawn(move || {
         // setup SDL
-        let window_width = 800;
+        let window_width = 1600;
 
         let sdl_context = sdl2::init().unwrap();
         let video_subsystem = sdl_context.video().unwrap();

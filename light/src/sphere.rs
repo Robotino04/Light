@@ -2,7 +2,6 @@ use ultraviolet::Vec3;
 
 use crate::{hittable::Hittable, ray::Ray, hit_result::HitResult, material::Material};
 
-
 pub struct Sphere{
     pub center: Vec3,
     pub radius: f32,
@@ -38,6 +37,12 @@ impl Hittable for Sphere{
         hit.set_face_normal(ray.direction, (ray.at(t) - self.center) / self.radius);
 
         return true;
+    }
+    fn get_min_bounds(&self) -> Vec3 {
+        return self.center - Vec3::new(self.radius, self.radius, self.radius);
+    }
+    fn get_max_bounds(&self) -> Vec3 {
+        return self.center + Vec3::new(self.radius, self.radius, self.radius);
     }
 }   
 
