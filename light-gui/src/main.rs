@@ -26,7 +26,7 @@ fn main() {
 
     let protected_image: Arc<Mutex<Image>> =
         Arc::new(Mutex::new(Image::new(scene.width, scene.height)));
-    let samples_per_pixel: usize = 20;
+    let samples_per_pixel: usize = 10000;
     let max_depth: i32 = 10;
 
     println!(
