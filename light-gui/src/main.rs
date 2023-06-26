@@ -20,13 +20,14 @@ use std::{
 use ultraviolet::{self, Vec3};
 
 fn main() {
-    let scene = load_from_blender("/tmp/blender_export.toml").unwrap();
+    for frame in 0..=130{
+    let scene = load_from_blender(format!("/tmp/blender_export{}.toml", frame).as_str()).unwrap();
     println!("Min: {:?}", scene.get_min_bounds());
     println!("Max: {:?}", scene.get_max_bounds());
 
     let protected_image: Arc<Mutex<Image>> =
         Arc::new(Mutex::new(Image::new(scene.width, scene.height)));
-    let samples_per_pixel: usize = 10000;
+    let samples_per_pixel: usize = 3000;
     let max_depth: i32 = 10;
 
     println!(
@@ -221,6 +222,7 @@ fn main() {
             average_samples(next_sample.load(std::sync::atomic::Ordering::Relaxed), x)
         })
         .apply_filter(|x| gamma_correct(2.0, x))
-        .save_to_file("/tmp/test.ppm")
+        .save_to_file(format!("/tmp/test{}.ppm", frame).as_str())
         .unwrap();
+    }
 }
