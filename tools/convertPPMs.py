@@ -7,4 +7,4 @@ pngs = [".".join(file.split(".")[:-1]) + ".png" for file in files]
 
 for i, (ppm, png) in enumerate(zip(files, pngs)):
     print(f'[{i+1:>3}/{len(files)}] "{ppm}" -> "{png}"')
-    os.system(f"convert {ppm} {png}")
+    os.system(f"convert '{ppm}' '{png}'")
