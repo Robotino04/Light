@@ -20,7 +20,7 @@ use std::{
 use ultraviolet::{self, Vec3};
 
 fn main() {
-    for frame in 90..=90{
+    for frame in 1..=1{
         let scene = load_from_blender(format!("/tmp/blender_export{}.toml", frame).as_str()).unwrap();
         println!("Min: {:?}", scene.get_min_bounds());
         println!("Max: {:?}", scene.get_max_bounds());
